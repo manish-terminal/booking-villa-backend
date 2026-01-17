@@ -80,7 +80,7 @@ func NewUser(phone, name string, role Role) *User {
 		Phone:      phone,
 		Name:       name,
 		Role:       role,
-		Status:     StatusPending,
+		Status:     StatusApproved, // Users are auto-approved on OTP verification
 		CreatedAt:  now,
 		UpdatedAt:  now,
 		EntityType: "USER",
@@ -99,12 +99,8 @@ func (u *User) IsApproved() bool {
 
 // CanLogin checks if the user can log in.
 func (u *User) CanLogin() bool {
-	// Admins can always login
-	if u.Role == RoleAdmin {
-		return true
-	}
-	// Other users need approval
-	return u.IsApproved()
+	// All users can login after OTP verification
+	return true
 }
 
 // UserResponse is the API response representation of a user.
