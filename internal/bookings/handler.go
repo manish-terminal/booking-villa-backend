@@ -58,6 +58,7 @@ type CreateBookingRequest struct {
 	SpecialRequests string  `json:"specialRequests,omitempty"`
 	InviteCode      string  `json:"inviteCode,omitempty"`
 	PricePerNight   float64 `json:"pricePerNight,omitempty"` // Override property price if needed
+	TotalAmount     float64 `json:"totalAmount,omitempty"`   // Directly set total amount for dynamic pricing
 }
 
 // HandleCreateBooking handles the POST /bookings endpoint.
@@ -161,6 +162,7 @@ func (h *Handler) HandleCreateBooking(ctx context.Context, request events.APIGat
 		CheckIn:         checkIn,
 		CheckOut:        checkOut,
 		PricePerNight:   pricePerNight,
+		TotalAmount:     req.TotalAmount, // Support dynamic total price
 		Currency:        property.Currency,
 		BookedBy:        claims.Phone,
 		InviteCode:      req.InviteCode,

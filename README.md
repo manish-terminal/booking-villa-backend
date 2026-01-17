@@ -416,9 +416,13 @@ Create a booking.
   "checkOut": "2026-02-05",
   "notes": "Early check-in requested",
   "specialRequests": "Vegetarian meals",
-  "inviteCode": "a1b2c3d4"
+  "inviteCode": "a1b2c3d4",
+  "pricePerNight": 5000,
+  "totalAmount": 20000
 }
 ```
+
+*Note: `pricePerNight` and `totalAmount` are optional. If `totalAmount` is provided, it will be used directly. Otherwise, it will be calculated as `pricePerNight` * `numNights`.*
 
 **Response (201):**
 ```json
