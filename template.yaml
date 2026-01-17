@@ -107,6 +107,12 @@ Resources:
             RestApiId: !Ref BookingApi
             Path: /properties/{id}
             Method: GET
+        UpdateProperty:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BookingApi
+            Path: /properties/{id}
+            Method: PATCH
         ListProperties:
           Type: Api
           Properties:

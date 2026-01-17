@@ -286,6 +286,9 @@ func routeProperties(ctx context.Context, request events.APIGatewayProxyRequest,
 	case strings.HasPrefix(path, "/properties/") && method == "GET":
 		return propertyHandler.HandleGetProperty(ctx, request)
 
+	case strings.HasPrefix(path, "/properties/") && method == "PATCH":
+		return rbacMiddleware.RequireAdminOrOwner()(propertyHandler.HandleUpdateProperty)(ctx, request)
+
 	default:
 		return errorResponse(404, "Property endpoint not found"), nil
 	}

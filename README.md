@@ -61,9 +61,10 @@ Verify OTP and get JWT token. Auto-creates user if new.
   "phone": "9876543210",
   "code": "123456",
   "name": "John Doe",
-  "role": "admin"
+  "role": "agent"
 }
 ```
+*Valid roles: `admin`, `owner`, `agent`*
 
 **Response (200):**
 ```json
@@ -72,24 +73,14 @@ Verify OTP and get JWT token. Auto-creates user if new.
   "user": {
     "phone": "9876543210",
     "name": "John Doe",
-    "role": "admin",
-    "status": "pending",
+    "role": "agent",
+    "status": "approved",
     "createdAt": "2026-01-18T00:00:00Z",
     "updatedAt": "2026-01-18T00:00:00Z"
   },
   "isNew": true,
   "message": "Authentication successful"
 }
-```
-
-**Response (202 - Pending Approval):**
-```json
-{
-  "user": {...},
-  "isNew": true,
-  "message": "User registration pending approval"
-}
-```
 
 ---
 

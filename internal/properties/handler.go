@@ -101,6 +101,110 @@ func (h *Handler) HandleCreateProperty(ctx context.Context, request events.APIGa
 	return APIResponse(http.StatusCreated, property), nil
 }
 
+// UpdatePropertyRequest represents a request to update a property.
+type UpdatePropertyRequest struct {
+	Name          *string  `json:"name,omitempty"`
+	Description   *string  `json:"description,omitempty"`
+	Address       *string  `json:"address,omitempty"`
+	City          *string  `json:"city,omitempty"`
+	State         *string  `json:"state,omitempty"`
+	Country       *string  `json:"country,omitempty"`
+	PricePerNight *float64 `json:"pricePerNight,omitempty"`
+	Currency      *string  `json:"currency,omitempty"`
+	MaxGuests     *int     `json:"maxGuests,omitempty"`
+	Bedrooms      *int     `json:"bedrooms,omitempty"`
+	Bathrooms     *int     `json:"bathrooms,omitempty"`
+	Amenities     []string `json:"amenities,omitempty"`
+	Images        []string `json:"images,omitempty"`
+	IsActive      *bool    `json:"isActive,omitempty"`
+}
+
+// HandleUpdateProperty handles the PATCH /properties/{id} endpoint.
+func (h *Handler) HandleUpdateProperty(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+	id := request.PathParameters["id"]
+	if id == "" {
+		return ErrorResponse(http.StatusBadRequest, "Property ID is required"), nil
+	}
+
+	// Get user from context
+	claims, ok := middleware.GetClaimsFromContext(ctx)
+	if !ok {
+		return ErrorResponse(http.StatusUnauthorized, "Unauthorized"), nil
+	}
+
+	// Get existing property
+	property, err := h.service.GetProperty(ctx, id)
+	if err != nil {
+		return ErrorResponse(http.StatusInternalServerError, "Failed to get property"), nil
+	}
+
+	if property == nil {
+		return ErrorResponse(http.StatusNotFound, "Property not found"), nil
+	}
+
+	// Check ownership
+	if property.OwnerID != claims.Phone && claims.Role != "admin" {
+		return ErrorResponse(http.StatusForbidden, "You don't own this property"), nil
+	}
+
+	// Parse update request
+	var req UpdatePropertyRequest
+	if err := json.Unmarshal([]byte(request.Body), &req); err != nil {
+		return ErrorResponse(http.StatusBadRequest, "Invalid request body"), nil
+	}
+
+	// Apply updates
+	if req.Name != nil {
+		property.Name = *req.Name
+	}
+	if req.Description != nil {
+		property.Description = *req.Description
+	}
+	if req.Address != nil {
+		property.Address = *req.Address
+	}
+	if req.City != nil {
+		property.City = *req.City
+	}
+	if req.State != nil {
+		property.State = *req.State
+	}
+	if req.Country != nil {
+		property.Country = *req.Country
+	}
+	if req.PricePerNight != nil {
+		property.PricePerNight = *req.PricePerNight
+	}
+	if req.Currency != nil {
+		property.Currency = *req.Currency
+	}
+	if req.MaxGuests != nil {
+		property.MaxGuests = *req.MaxGuests
+	}
+	if req.Bedrooms != nil {
+		property.Bedrooms = *req.Bedrooms
+	}
+	if req.Bathrooms != nil {
+		property.Bathrooms = *req.Bathrooms
+	}
+	if req.Amenities != nil {
+		property.Amenities = req.Amenities
+	}
+	if req.Images != nil {
+		property.Images = req.Images
+	}
+	if req.IsActive != nil {
+		property.IsActive = *req.IsActive
+	}
+
+	// Save updates
+	if err := h.service.UpdateProperty(ctx, property); err != nil {
+		return ErrorResponse(http.StatusInternalServerError, "Failed to update property"), nil
+	}
+
+	return APIResponse(http.StatusOK, property), nil
+}
+
 // HandleGetProperty handles the GET /properties/{id} endpoint.
 func (h *Handler) HandleGetProperty(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 	id := request.PathParameters["id"]
