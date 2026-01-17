@@ -5,11 +5,10 @@ on:
     branches:
       - main
       - master
-  workflow_dispatch:  # Manual trigger
+  workflow_dispatch:
 
 env:
   AWS_REGION: ap-south-1
-  SAM_TEMPLATE: template.yaml
   STACK_NAME: booking-villa-backend
 
 jobs:
@@ -27,7 +26,8 @@ jobs:
 
       - name: Build Lambda binary
         run: |
-          GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -tags lambda.norpc -o bootstrap ./cmd/main.go
+          GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -tags lambda.norpc -o bootstrap ./cmd/main.go
+          chmod +x bootstrap
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -39,20 +39,20 @@ jobs:
       - name: Set up SAM CLI
         uses: aws-actions/setup-sam@v2
 
-      - name: SAM Build
-        run: sam build --use-container
-
-      - name: SAM Deploy
+      - name: SAM Deploy (skip build, use pre-built binary)
         run: |
           sam deploy \
             --stack-name ${{ env.STACK_NAME }} \
+            --template-file template.yaml \
             --no-confirm-changeset \
             --no-fail-on-empty-changeset \
             --capabilities CAPABILITY_IAM \
-            --parameter-overrides JWTSecret=${{ secrets.JWT_SECRET }}
+            --parameter-overrides JWTSecret=${{ secrets.JWT_SECRET }} \
+            --resolve-s3
 
-      - name: Output API Endpoint
+      - name: Get API Endpoint
         run: |
+          echo "API Endpoint:"
           aws cloudformation describe-stacks \
             --stack-name ${{ env.STACK_NAME }} \
             --query 'Stacks[0].Outputs[?OutputKey==`ApiEndpoint`].OutputValue' \
