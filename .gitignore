@@ -1,0 +1,29 @@
+# Binaries
+bootstrap
+*.exe
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# SAM build artifacts
+.aws-sam/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Go
+*.test
+*.out
+go.work
+
+# Env files (never commit secrets)
+.env
+.env.*
+*.env
+
+# Logs
+*.log

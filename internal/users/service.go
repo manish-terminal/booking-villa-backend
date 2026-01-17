@@ -1,0 +1,168 @@
+package users
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
+	"github.com/booking-villa-backend/internal/db"
+)
+
+// Service provides user-related operations.
+type Service struct {
+	db *db.Client
+}
+
+// NewService creates a new user service.
+func NewService(dbClient *db.Client) *Service {
+	return &Service{db: dbClient}
+}
+
+// CreateUser stores a new user in DynamoDB.
+func (s *Service) CreateUser(ctx context.Context, user *User) error {
+	user.UpdatedAt = time.Now()
+	if user.CreatedAt.IsZero() {
+		user.CreatedAt = time.Now()
+	}
+
+	// Try to create only if user doesn't exist
+	err := s.db.PutItemWithCondition(ctx, user, "attribute_not_exists(PK)")
+	if err != nil {
+		return fmt.Errorf("failed to create user: %w", err)
+	}
+
+	return nil
+}
+
+// GetUserByPhone retrieves a user by phone number.
+func (s *Service) GetUserByPhone(ctx context.Context, phone string) (*User, error) {
+	var user User
+	pk := "USER#" + phone
+	sk := "PROFILE"
+
+	err := s.db.GetItem(ctx, pk, sk, &user)
+	if err != nil {
+		if db.IsNotFound(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to get user: %w", err)
+	}
+
+	return &user, nil
+}
+
+// UpdateUser updates an existing user.
+func (s *Service) UpdateUser(ctx context.Context, user *User) error {
+	user.UpdatedAt = time.Now()
+	return s.db.PutItem(ctx, user)
+}
+
+// UpdateUserStatus updates a user's approval status.
+func (s *Service) UpdateUserStatus(ctx context.Context, phone string, status UserStatus, approvedBy string) error {
+	pk := "USER#" + phone
+	sk := "PROFILE"
+	now := time.Now().Format(time.RFC3339)
+
+	params := db.UpdateParams{
+		UpdateExpression: "SET #status = :status, updatedAt = :updatedAt, approvedBy = :approvedBy, approvedAt = :approvedAt",
+		ExpressionValues: map[string]string{
+			":status":     string(status),
+			":updatedAt":  now,
+			":approvedBy": approvedBy,
+			":approvedAt": now,
+		},
+		ExpressionAttributeNames: map[string]string{
+			"#status": "status",
+		},
+	}
+
+	return s.db.UpdateItem(ctx, pk, sk, params)
+}
+
+// UpdatePassword sets or updates a user's password.
+func (s *Service) UpdatePassword(ctx context.Context, phone string, hashedPassword string) error {
+	pk := "USER#" + phone
+	sk := "PROFILE"
+	now := time.Now().Format(time.RFC3339)
+
+	params := db.UpdateParams{
+		UpdateExpression: "SET passwordHash = :passwordHash, updatedAt = :updatedAt",
+		ExpressionValues: map[string]string{
+			":passwordHash": hashedPassword,
+			":updatedAt":    now,
+		},
+	}
+
+	return s.db.UpdateItem(ctx, pk, sk, params)
+}
+
+// ListUsersByRole retrieves all users with a specific role.
+func (s *Service) ListUsersByRole(ctx context.Context, role Role) ([]*User, error) {
+	params := db.QueryParams{
+		IndexName:    "GSI1",
+		KeyCondition: "GSI1PK = :gsi1pk",
+		ExpressionValues: map[string]string{
+			":gsi1pk": "ROLE#" + string(role),
+		},
+	}
+
+	items, err := s.db.Query(ctx, params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list users by role: %w", err)
+	}
+
+	users := make([]*User, 0, len(items))
+	for _, item := range items {
+		var user User
+		if err := attributevalue.UnmarshalMap(item, &user); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal user: %w", err)
+		}
+		users = append(users, &user)
+	}
+
+	return users, nil
+}
+
+// ListPendingUsers retrieves all users pending approval.
+func (s *Service) ListPendingUsers(ctx context.Context) ([]*User, error) {
+	// Since we don't have a GSI on status, we'll need to scan
+	// For production, consider adding a GSI on status
+	// For now, we'll query by role and filter
+	var allPending []*User
+
+	for _, role := range []Role{RoleOwner, RoleAgent} {
+		users, err := s.ListUsersByRole(ctx, role)
+		if err != nil {
+			return nil, err
+		}
+		for _, u := range users {
+			if u.Status == StatusPending {
+				allPending = append(allPending, u)
+			}
+		}
+	}
+
+	return allPending, nil
+}
+
+// GetOrCreateUser retrieves a user or creates a new one if not found.
+// Used during OTP verification to auto-create users.
+func (s *Service) GetOrCreateUser(ctx context.Context, phone, name string, role Role) (*User, bool, error) {
+	existing, err := s.GetUserByPhone(ctx, phone)
+	if err != nil {
+		return nil, false, err
+	}
+
+	if existing != nil {
+		return existing, false, nil
+	}
+
+	// Create new user
+	newUser := NewUser(phone, name, role)
+	if err := s.CreateUser(ctx, newUser); err != nil {
+		return nil, false, err
+	}
+
+	return newUser, true, nil
+}

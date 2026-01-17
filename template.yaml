@@ -1,0 +1,223 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Hotel/Villa Booking Platform Backend
+
+Globals:
+  Function:
+    Timeout: 30
+    MemorySize: 256
+    Runtime: provided.al2023
+    Architectures:
+      - arm64
+    Environment:
+      Variables:
+        TABLE_NAME: !Ref BookingTable
+        JWT_SECRET: !Ref JWTSecret
+        OTP_EXPIRY_MINUTES: "5"
+
+Parameters:
+  JWTSecret:
+    Type: String
+    Description: Secret key for JWT signing
+    NoEcho: true
+    Default: "your-super-secret-jwt-key-change-in-production"
+
+Resources:
+  # API Gateway
+  BookingApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: prod
+      Cors:
+        AllowMethods: "'GET,POST,PUT,PATCH,DELETE,OPTIONS'"
+        AllowHeaders: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
+        AllowOrigin: "'*'"
+
+  # Lambda Function
+  BookingFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: go1.x
+    Properties:
+      CodeUri: ./
+      Handler: bootstrap
+      Events:
+        # Auth endpoints
+        SendOTP:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BookingApi
+            Path: /auth/send-otp
+            Method: POST
+        VerifyOTP:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BookingApi
+            Path: /auth/verify-otp
+            Method: POST
+        Login:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BookingApi
+            Path: /auth/login
+            Method: POST
+        RefreshToken:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BookingApi
+            Path: /auth/refresh
+            Method: POST
+
+        # User endpoints
+        GetUser:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BookingApi
+            Path: /users/{phone}
+            Method: GET
+        ListUsers:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BookingApi
+            Path: /users
+            Method: GET
+        UpdateUserStatus:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BookingApi
+            Path: /users/{phone}/status
+            Method: PATCH
+        SetPassword:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BookingApi
+            Path: /users/password
+            Method: POST
+
+        # Property endpoints
+        CreateProperty:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BookingApi
+            Path: /properties
+            Method: POST
+        GetProperty:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BookingApi
+            Path: /properties/{id}
+            Method: GET
+        ListProperties:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BookingApi
+            Path: /properties
+            Method: GET
+        GenerateInviteCode:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BookingApi
+            Path: /properties/{id}/invite-codes
+            Method: POST
+        ValidateInviteCode:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BookingApi
+            Path: /invite-codes/validate
+            Method: POST
+
+        # Booking endpoints
+        CreateBooking:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BookingApi
+            Path: /bookings
+            Method: POST
+        GetBooking:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BookingApi
+            Path: /bookings/{id}
+            Method: GET
+        ListBookings:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BookingApi
+            Path: /bookings
+            Method: GET
+        UpdateBookingStatus:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BookingApi
+            Path: /bookings/{id}/status
+            Method: PATCH
+
+        # Payment endpoints
+        LogPayment:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BookingApi
+            Path: /bookings/{id}/payments
+            Method: POST
+        GetPayments:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BookingApi
+            Path: /bookings/{id}/payments
+            Method: GET
+        GetPaymentStatus:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BookingApi
+            Path: /bookings/{id}/payment-status
+            Method: GET
+
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BookingTable
+
+  # DynamoDB Table (Single-Table Design)
+  BookingTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: BookingPlatformTable
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+        - AttributeName: GSI1PK
+          AttributeType: S
+        - AttributeName: GSI1SK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: GSI1
+          KeySchema:
+            - AttributeName: GSI1PK
+              KeyType: HASH
+            - AttributeName: GSI1SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      TimeToLiveSpecification:
+        AttributeName: TTL
+        Enabled: true
+
+Outputs:
+  ApiEndpoint:
+    Description: API Gateway endpoint URL
+    Value: !Sub "https://${BookingApi}.execute-api.${AWS::Region}.amazonaws.com/prod"
+  
+  BookingFunctionArn:
+    Description: Lambda function ARN
+    Value: !GetAtt BookingFunction.Arn
+  
+  DynamoDBTableName:
+    Description: DynamoDB table name
+    Value: !Ref BookingTable
