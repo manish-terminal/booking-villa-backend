@@ -178,4 +178,4 @@ sam deploy
 
 ## License
 
-MIT
+MIT License
