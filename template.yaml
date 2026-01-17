@@ -172,6 +172,32 @@ Resources:
             Path: /bookings/{id}/payment-status
             Method: GET
 
+        # Analytics endpoints
+        OwnerAnalytics:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BookingApi
+            Path: /analytics/owner
+            Method: GET
+        AgentAnalytics:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BookingApi
+            Path: /analytics/agent
+            Method: GET
+        Dashboard:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BookingApi
+            Path: /analytics/dashboard
+            Method: GET
+        Health:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BookingApi
+            Path: /health
+            Method: GET
+
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref BookingTable

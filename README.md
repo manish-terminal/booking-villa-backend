@@ -4,169 +4,597 @@ A production-ready Go backend for a Hotel/Villa Booking Platform running on AWS 
 
 ## Features
 
-- **Phone-based Authentication**: OTP verification with 5-minute expiry
-- **Optional Password Login**: Users can set passwords for alternative login
-- **Role-Based Access Control**: Admin, Owner, and Agent roles
-- **Property Management**: Create and manage properties with invite codes
-- **Booking System**: Full booking lifecycle with availability checking
-- **Offline Payment Tracking**: Log payments with status calculation (pending/due/completed)
-- **DynamoDB Single-Table Design**: Optimized for serverless workloads
-
-## Tech Stack
-
-- **Runtime**: Go 1.21+
-- **Cloud**: AWS Lambda, API Gateway, DynamoDB
-- **IaC**: AWS SAM
-- **Auth**: JWT (HS256)
-
-## Project Structure
-
-```
-booking-villa-backend/
-├── cmd/
-│   └── main.go              # Lambda entry point and router
-├── internal/
-│   ├── auth/
-│   │   ├── handler.go       # Auth HTTP handlers
-│   │   ├── otp.go           # OTP generation and verification
-│   │   └── service.go       # Auth business logic
-│   ├── bookings/
-│   │   ├── handler.go       # Booking HTTP handlers
-│   │   └── service.go       # Booking operations
-│   ├── db/
-│   │   └── dynamo.go        # DynamoDB client and helpers
-│   ├── middleware/
-│   │   ├── auth.go          # JWT authentication middleware
-│   │   └── rbac.go          # Role-based access control
-│   ├── payments/
-│   │   ├── handler.go       # Payment HTTP handlers
-│   │   └── service.go       # Payment tracking
-│   ├── properties/
-│   │   ├── handler.go       # Property HTTP handlers
-│   │   └── service.go       # Property and invite code management
-│   ├── users/
-│   │   ├── model.go         # User data structures
-│   │   └── service.go       # User CRUD operations
-│   └── utils/
-│       ├── hash.go          # Password hashing (bcrypt)
-│       └── jwt.go           # JWT utilities
-├── template.yaml            # AWS SAM template
-├── go.mod                   # Go module definition
-├── Makefile                 # Build and deploy commands
-└── README.md
-```
+- **Phone-based OTP Authentication** with 5-minute expiry
+- **JWT Token Authentication** (24-hour validity)
+- **Role-Based Access Control**: Admin, Owner, Agent
+- **Property Management** with invite codes
+- **Booking System** with availability checking
+- **Offline Payment Tracking** (pending → due → completed)
 
 ## Quick Start
 
-### Prerequisites
-
-- Go 1.21+
-- AWS CLI configured
-- AWS SAM CLI
-- Docker (for local testing)
-
-### Installation
-
 ```bash
-# Clone the repository
-cd booking-villa-backend
-
-# Download dependencies
-make deps
-make tidy
-
 # Build
 make build
+
+# Deploy
+sam deploy --guided
 ```
 
-### Local Development
+---
 
-```bash
-# Start local API Gateway
-make local
+# API Reference
 
-# The API will be available at http://localhost:3000
+**Base URL**: `https://YOUR_API_ID.execute-api.ap-south-1.amazonaws.com/prod`
+
+---
+
+## Authentication
+
+### POST /auth/send-otp
+Send OTP to phone number.
+
+**Request:**
+```json
+{
+  "phone": "9876543210"
+}
 ```
 
-### Deploy to AWS
-
-```bash
-# First-time deployment (interactive)
-make deploy
-
-# Subsequent deployments
-sam deploy
+**Response (200):**
+```json
+{
+  "message": "OTP sent successfully",
+  "phone": "9876543210",
+  "code": "123456"
+}
 ```
 
-## API Endpoints
+---
 
-### Authentication
+### POST /auth/verify-otp
+Verify OTP and get JWT token. Auto-creates user if new.
 
-| Method | Endpoint | Description | Auth |
-|--------|----------|-------------|------|
-| POST | `/auth/send-otp` | Send OTP to phone | Public |
-| POST | `/auth/verify-otp` | Verify OTP, get JWT | Public |
-| POST | `/auth/login` | Password login | Public |
-| POST | `/auth/refresh` | Refresh JWT token | JWT |
+**Request:**
+```json
+{
+  "phone": "9876543210",
+  "code": "123456",
+  "name": "John Doe",
+  "role": "admin"
+}
+```
 
-### Users
+**Response (200):**
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "user": {
+    "phone": "9876543210",
+    "name": "John Doe",
+    "role": "admin",
+    "status": "pending",
+    "createdAt": "2026-01-18T00:00:00Z",
+    "updatedAt": "2026-01-18T00:00:00Z"
+  },
+  "isNew": true,
+  "message": "Authentication successful"
+}
+```
 
-| Method | Endpoint | Description | Auth |
-|--------|----------|-------------|------|
-| GET | `/users` | List users (pending by default) | Admin |
-| GET | `/users/{phone}` | Get user by phone | JWT |
-| PATCH | `/users/{phone}/status` | Approve/reject user | Admin |
-| POST | `/users/password` | Set/update password | JWT |
+**Response (202 - Pending Approval):**
+```json
+{
+  "user": {...},
+  "isNew": true,
+  "message": "User registration pending approval"
+}
+```
 
-### Properties
+---
 
-| Method | Endpoint | Description | Auth |
-|--------|----------|-------------|------|
-| POST | `/properties` | Create property | Owner/Admin |
-| GET | `/properties` | List user's properties | JWT |
-| GET | `/properties/{id}` | Get property details | Public |
-| POST | `/properties/{id}/invite-codes` | Generate invite code | Owner/Admin |
-| POST | `/invite-codes/validate` | Validate invite code | Public |
+### POST /auth/login
+Login with phone and password.
 
-### Bookings
+**Request:**
+```json
+{
+  "phone": "9876543210",
+  "password": "yourpassword"
+}
+```
 
-| Method | Endpoint | Description | Auth |
-|--------|----------|-------------|------|
-| POST | `/bookings` | Create booking | Any Role |
-| GET | `/bookings` | List bookings | JWT |
-| GET | `/bookings/{id}` | Get booking | JWT |
-| PATCH | `/bookings/{id}/status` | Update status | Owner/Admin |
+**Response (200):**
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiIs...",
+  "user": {...},
+  "message": "Login successful"
+}
+```
 
-### Payments
+---
 
-| Method | Endpoint | Description | Auth |
-|--------|----------|-------------|------|
-| POST | `/bookings/{id}/payments` | Log payment | Any Role |
-| GET | `/bookings/{id}/payments` | List payments | JWT |
-| GET | `/bookings/{id}/payment-status` | Get payment status | JWT |
+### POST /auth/refresh
+Refresh JWT token.
 
-## Business Rules
+**Headers:** `Authorization: Bearer <token>`
 
-1. **Phone as Primary Identifier**: Users are identified by phone number
-2. **OTP Expiry**: OTPs expire after 5 minutes
-3. **User Approval**: Non-admin users require admin approval
-4. **Invite Codes**: Property-specific codes for agent onboarding
-5. **Offline Payments Only**: No online payment processing
-6. **Payment Status Logic**:
-   - `pending`: No payments recorded
-   - `due`: Partial payment received
-   - `completed`: Full amount paid
+**Response (200):**
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiIs...",
+  "user": {...},
+  "message": "Token refreshed"
+}
+```
 
-## DynamoDB Schema (Single-Table Design)
+---
 
-| Entity | PK | SK | GSI1PK | GSI1SK |
-|--------|----|----|--------|--------|
-| User | `USER#<phone>` | `PROFILE` | `ROLE#<role>` | `USER#<phone>` |
-| OTP | `OTP#<phone>` | `CODE#<otp>` | - | - |
-| Property | `PROPERTY#<id>` | `METADATA` | `OWNER#<userId>` | `PROPERTY#<id>` |
-| InviteCode | `INVITE#<code>` | `PROPERTY#<propId>` | `PROPERTY#<propId>` | `INVITE#<code>` |
-| Booking | `BOOKING#<id>` | `METADATA` | `PROPERTY#<propId>` | `DATE#<checkIn>` |
-| Payment | `PAYMENT#<bookingId>` | `DATE#<date>#<id>` | `BOOKING#<bookingId>` | `PAYMENT#<id>` |
+## Users
+
+### POST /users/password
+Set or update password.
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Request:**
+```json
+{
+  "password": "newpassword123",
+  "oldPassword": "oldpassword"
+}
+```
+
+**Response (200):**
+```json
+{
+  "message": "Password set successfully"
+}
+```
+
+---
+
+### GET /users
+List users (Admin only).
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Query Params:** `?role=agent` (optional)
+
+**Response (200):**
+```json
+{
+  "users": [
+    {
+      "phone": "9876543210",
+      "name": "John Doe",
+      "role": "agent",
+      "status": "pending",
+      "createdAt": "2026-01-18T00:00:00Z",
+      "updatedAt": "2026-01-18T00:00:00Z"
+    }
+  ],
+  "count": 1
+}
+```
+
+---
+
+### GET /users/{phone}
+Get user by phone.
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Response (200):**
+```json
+{
+  "phone": "9876543210",
+  "name": "John Doe",
+  "role": "admin",
+  "status": "approved",
+  "createdAt": "2026-01-18T00:00:00Z",
+  "updatedAt": "2026-01-18T00:00:00Z"
+}
+```
+
+---
+
+### PATCH /users/{phone}/status
+Approve or reject user (Admin only).
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Request:**
+```json
+{
+  "status": "approved"
+}
+```
+*Valid statuses: `pending`, `approved`, `rejected`*
+
+**Response (200):**
+```json
+{
+  "message": "User status updated",
+  "phone": "9876543210",
+  "status": "approved"
+}
+```
+
+---
+
+## Properties
+
+### POST /properties
+Create a property (Owner/Admin).
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Request:**
+```json
+{
+  "name": "Sunset Beach Villa",
+  "description": "Beautiful beachfront villa with pool",
+  "address": "123 Beach Road",
+  "city": "Goa",
+  "state": "Goa",
+  "country": "India",
+  "pricePerNight": 5000,
+  "currency": "INR",
+  "maxGuests": 6,
+  "bedrooms": 3,
+  "bathrooms": 2,
+  "amenities": ["wifi", "pool", "ac", "parking"],
+  "images": ["https://example.com/img1.jpg"]
+}
+```
+
+**Response (201):**
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "name": "Sunset Beach Villa",
+  "description": "Beautiful beachfront villa with pool",
+  "address": "123 Beach Road",
+  "city": "Goa",
+  "state": "Goa",
+  "country": "India",
+  "ownerId": "9876543210",
+  "pricePerNight": 5000,
+  "currency": "INR",
+  "maxGuests": 6,
+  "bedrooms": 3,
+  "bathrooms": 2,
+  "amenities": ["wifi", "pool", "ac", "parking"],
+  "isActive": true,
+  "createdAt": "2026-01-18T00:00:00Z",
+  "updatedAt": "2026-01-18T00:00:00Z"
+}
+```
+
+---
+
+### GET /properties
+List my properties.
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Response (200):**
+```json
+{
+  "properties": [...],
+  "count": 2
+}
+```
+
+---
+
+### GET /properties/{id}
+Get property by ID (Public).
+
+**Response (200):**
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "name": "Sunset Beach Villa",
+  ...
+}
+```
+
+---
+
+### POST /properties/{id}/invite-codes
+Generate invite code for agents (Owner/Admin).
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Request:**
+```json
+{
+  "expiresInDays": 30,
+  "maxUses": 10
+}
+```
+
+**Response (201):**
+```json
+{
+  "code": "a1b2c3d4",
+  "propertyId": "550e8400-e29b-41d4-a716-446655440000",
+  "propertyName": "Sunset Beach Villa",
+  "createdBy": "9876543210",
+  "createdAt": "2026-01-18T00:00:00Z",
+  "expiresAt": "2026-02-17T00:00:00Z",
+  "maxUses": 10,
+  "usedCount": 0,
+  "isActive": true
+}
+```
+
+---
+
+### POST /invite-codes/validate
+Validate an invite code (Public).
+
+**Request:**
+```json
+{
+  "code": "a1b2c3d4"
+}
+```
+
+**Response (200):**
+```json
+{
+  "valid": true,
+  "inviteCode": {...},
+  "message": "Invite code is valid"
+}
+```
+
+**Response (400):**
+```json
+{
+  "error": "invite code has expired"
+}
+```
+
+---
+
+## Bookings
+
+### POST /bookings
+Create a booking.
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Request:**
+```json
+{
+  "propertyId": "550e8400-e29b-41d4-a716-446655440000",
+  "guestName": "Jane Smith",
+  "guestPhone": "9998887776",
+  "guestEmail": "jane@example.com",
+  "numGuests": 4,
+  "checkIn": "2026-02-01",
+  "checkOut": "2026-02-05",
+  "notes": "Early check-in requested",
+  "specialRequests": "Vegetarian meals",
+  "inviteCode": "a1b2c3d4"
+}
+```
+
+**Response (201):**
+```json
+{
+  "id": "660e8400-e29b-41d4-a716-446655440001",
+  "propertyId": "550e8400-e29b-41d4-a716-446655440000",
+  "propertyName": "Sunset Beach Villa",
+  "guestName": "Jane Smith",
+  "guestPhone": "9998887776",
+  "guestEmail": "jane@example.com",
+  "numGuests": 4,
+  "checkIn": "2026-02-01T00:00:00Z",
+  "checkOut": "2026-02-05T00:00:00Z",
+  "numNights": 4,
+  "pricePerNight": 5000,
+  "totalAmount": 20000,
+  "currency": "INR",
+  "status": "pending_confirmation",
+  "bookedBy": "9876543210",
+  "notes": "Early check-in requested",
+  "createdAt": "2026-01-18T00:00:00Z",
+  "updatedAt": "2026-01-18T00:00:00Z"
+}
+```
+
+**Response (409 - Not Available):**
+```json
+{
+  "error": "Property is not available for the selected dates"
+}
+```
+
+---
+
+### GET /bookings
+List bookings.
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Query Params:**
+- `propertyId` (required)
+- `startDate` (optional, format: YYYY-MM-DD)
+- `endDate` (optional, format: YYYY-MM-DD)
+
+**Response (200):**
+```json
+{
+  "bookings": [...],
+  "count": 5
+}
+```
+
+---
+
+### GET /bookings/{id}
+Get booking by ID.
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Response (200):**
+```json
+{
+  "id": "660e8400-e29b-41d4-a716-446655440001",
+  ...
+}
+```
+
+---
+
+### PATCH /bookings/{id}/status
+Update booking status (Owner/Admin).
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Request:**
+```json
+{
+  "status": "confirmed"
+}
+```
+*Valid statuses: `pending_confirmation`, `confirmed`, `checked_in`, `checked_out`, `cancelled`, `no_show`*
+
+**Response (200):**
+```json
+{
+  "message": "Booking status updated",
+  "bookingId": "660e8400-e29b-41d4-a716-446655440001",
+  "status": "confirmed"
+}
+```
+
+---
+
+## Payments
+
+### POST /bookings/{id}/payments
+Log an offline payment.
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Request:**
+```json
+{
+  "amount": 10000,
+  "method": "upi",
+  "reference": "UPI-TXN-12345",
+  "notes": "Advance payment",
+  "paymentDate": "2026-01-18"
+}
+```
+*Valid methods: `cash`, `upi`, `bank_transfer`, `cheque`, `other`*
+
+**Response (201):**
+```json
+{
+  "payment": {
+    "id": "770e8400-e29b-41d4-a716-446655440002",
+    "bookingId": "660e8400-e29b-41d4-a716-446655440001",
+    "amount": 10000,
+    "currency": "INR",
+    "method": "upi",
+    "reference": "UPI-TXN-12345",
+    "recordedBy": "9876543210",
+    "paymentDate": "2026-01-18T00:00:00Z",
+    "createdAt": "2026-01-18T00:00:00Z"
+  },
+  "summary": {
+    "bookingId": "660e8400-e29b-41d4-a716-446655440001",
+    "totalAmount": 20000,
+    "totalPaid": 10000,
+    "totalDue": 10000,
+    "status": "due",
+    "paymentCount": 1,
+    "currency": "INR",
+    "lastPaymentDate": "2026-01-18T00:00:00Z"
+  },
+  "message": "Payment logged successfully"
+}
+```
+
+---
+
+### GET /bookings/{id}/payments
+Get all payments for a booking.
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Response (200):**
+```json
+{
+  "payments": [...],
+  "count": 2
+}
+```
+
+---
+
+### GET /bookings/{id}/payment-status
+Get payment status summary.
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Response (200):**
+```json
+{
+  "bookingId": "660e8400-e29b-41d4-a716-446655440001",
+  "totalAmount": 20000,
+  "totalPaid": 20000,
+  "totalDue": 0,
+  "status": "completed",
+  "paymentCount": 2,
+  "currency": "INR",
+  "lastPaymentDate": "2026-01-20T00:00:00Z"
+}
+```
+
+---
+
+## Health Check
+
+### GET /health
+
+**Response (200):**
+```json
+{
+  "status": "healthy",
+  "service": "booking-villa-backend"
+}
+```
+
+---
+
+## Error Responses
+
+All errors follow this format:
+```json
+{
+  "error": "Error message here"
+}
+```
+
+| Status | Meaning |
+|--------|---------|
+| 400 | Bad Request - Invalid input |
+| 401 | Unauthorized - Missing/invalid token |
+| 403 | Forbidden - Insufficient permissions |
+| 404 | Not Found - Resource doesn't exist |
+| 409 | Conflict - Resource conflict (e.g., dates unavailable) |
+| 500 | Server Error |
+
+---
 
 ## Environment Variables
 
@@ -174,7 +602,9 @@ sam deploy
 |----------|-------------|---------|
 | `TABLE_NAME` | DynamoDB table name | `BookingPlatformTable` |
 | `JWT_SECRET` | JWT signing secret | - |
-| `OTP_EXPIRY_MINUTES` | OTP validity duration | `5` |
+| `OTP_EXPIRY_MINUTES` | OTP validity (minutes) | `5` |
+
+---
 
 ## License
 

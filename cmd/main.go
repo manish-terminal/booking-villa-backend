@@ -9,6 +9,7 @@ import (
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
+	"github.com/booking-villa-backend/internal/analytics"
 	"github.com/booking-villa-backend/internal/auth"
 	"github.com/booking-villa-backend/internal/bookings"
 	"github.com/booking-villa-backend/internal/db"
@@ -20,14 +21,15 @@ import (
 
 // Global handlers (initialized once per Lambda cold start)
 var (
-	dbClient        *db.Client
-	authHandler     *auth.Handler
-	propertyHandler *properties.Handler
-	bookingHandler  *bookings.Handler
-	paymentHandler  *payments.Handler
-	authMiddleware  *middleware.AuthMiddleware
-	rbacMiddleware  *middleware.RBACMiddleware
-	userService     *users.Service
+	dbClient         *db.Client
+	authHandler      *auth.Handler
+	propertyHandler  *properties.Handler
+	bookingHandler   *bookings.Handler
+	paymentHandler   *payments.Handler
+	analyticsHandler *analytics.Handler
+	authMiddleware   *middleware.AuthMiddleware
+	rbacMiddleware   *middleware.RBACMiddleware
+	userService      *users.Service
 )
 
 func init() {
@@ -44,6 +46,7 @@ func init() {
 	propertyHandler = properties.NewHandler(dbClient)
 	bookingHandler = bookings.NewHandler(dbClient)
 	paymentHandler = payments.NewHandler(dbClient)
+	analyticsHandler = analytics.NewHandler(dbClient)
 	userService = users.NewService(dbClient)
 
 	// Initialize middleware
@@ -108,6 +111,11 @@ func routeRequest(ctx context.Context, request events.APIGatewayProxyRequest) (e
 	// Booking routes
 	if strings.HasPrefix(path, "/bookings") {
 		return routeBookings(ctx, request, path, method)
+	}
+
+	// Analytics routes
+	if strings.HasPrefix(path, "/analytics") {
+		return routeAnalytics(ctx, request, path, method)
 	}
 
 	// Health check
@@ -317,6 +325,23 @@ func routeBookings(ctx context.Context, request events.APIGatewayProxyRequest, p
 
 	default:
 		return errorResponse(404, "Booking endpoint not found"), nil
+	}
+}
+
+// routeAnalytics handles analytics routes.
+func routeAnalytics(ctx context.Context, request events.APIGatewayProxyRequest, path, method string) (events.APIGatewayProxyResponse, error) {
+	switch {
+	case path == "/analytics/owner" && method == "GET":
+		return rbacMiddleware.RequireAdminOrOwner()(analyticsHandler.HandleOwnerAnalytics)(ctx, request)
+
+	case path == "/analytics/agent" && method == "GET":
+		return rbacMiddleware.RequireAny()(analyticsHandler.HandleAgentAnalytics)(ctx, request)
+
+	case path == "/analytics/dashboard" && method == "GET":
+		return authMiddleware.Authenticate(analyticsHandler.HandleDashboard)(ctx, request)
+
+	default:
+		return errorResponse(404, "Analytics endpoint not found"), nil
 	}
 }
 
