@@ -163,6 +163,18 @@ Resources:
             RestApiId: !Ref BookingApi
             Path: /bookings/{id}/status
             Method: PATCH
+        CheckAvailability:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BookingApi
+            Path: /properties/{id}/availability
+            Method: GET
+        GetPropertyCalendar:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BookingApi
+            Path: /properties/{id}/calendar
+            Method: GET
 
         # Payment endpoints
         LogPayment:

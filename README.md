@@ -295,6 +295,50 @@ Get property by ID (Public).
 
 ---
 
+### GET /properties/{id}/availability
+Check if a property is available for specific dates (Public).
+
+**Query Params:**
+- `checkIn` (required, format: YYYY-MM-DD)
+- `checkOut` (required, format: YYYY-MM-DD)
+
+**Response (200):**
+```json
+{
+  "propertyId": "550e8400-e29b-41d4-a716-446655440000",
+  "checkIn": "2026-02-01",
+  "checkOut": "2026-02-05",
+  "available": true
+}
+```
+
+---
+
+### GET /properties/{id}/calendar
+Get simplified list of occupied date ranges for a calendar view (Public).
+
+**Query Params:**
+- `startDate` (optional, format: YYYY-MM-DD, default: start of current month)
+- `endDate` (optional, format: YYYY-MM-DD, default: end of current month)
+
+**Response (200):**
+```json
+{
+  "propertyId": "550e8400-e29b-41d4-a716-446655440000",
+  "startDate": "2026-02-01",
+  "endDate": "2026-02-28",
+  "occupied": [
+    {
+      "checkIn": "2026-02-10T00:00:00Z",
+      "checkOut": "2026-02-15T00:00:00Z",
+      "status": "confirmed"
+    }
+  ]
+}
+```
+
+---
+
 ### POST /properties/{id}/invite-codes
 Generate invite code for agents (Owner/Admin).
 

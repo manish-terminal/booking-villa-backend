@@ -276,6 +276,11 @@ func routeProperties(ctx context.Context, request events.APIGatewayProxyRequest,
 		return bookingHandler.HandleCheckAvailability(ctx, request)
 	}
 
+	// Check for calendar endpoint
+	if strings.HasSuffix(path, "/calendar") && method == "GET" {
+		return bookingHandler.HandleGetPropertyCalendar(ctx, request)
+	}
+
 	switch {
 	case path == "/properties" && method == "POST":
 		return rbacMiddleware.RequireAdminOrOwner()(propertyHandler.HandleCreateProperty)(ctx, request)

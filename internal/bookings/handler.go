@@ -312,3 +312,64 @@ func (h *Handler) HandleCheckAvailability(ctx context.Context, request events.AP
 		"available":  available,
 	}), nil
 }
+
+// OccupiedDateRange represents a range of dates that are not available.
+type OccupiedDateRange struct {
+	CheckIn  time.Time `json:"checkIn"`
+	CheckOut time.Time `json:"checkOut"`
+	Status   string    `json:"status"`
+}
+
+// HandleGetPropertyCalendar handles the GET /properties/{id}/calendar endpoint.
+func (h *Handler) HandleGetPropertyCalendar(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+	propertyID := request.PathParameters["id"]
+	if propertyID == "" {
+		return ErrorResponse(http.StatusBadRequest, "Property ID is required"), nil
+	}
+
+	startDateStr := request.QueryStringParameters["startDate"]
+	endDateStr := request.QueryStringParameters["endDate"]
+
+	// Default to current month if not provided
+	now := time.Now()
+	startDate := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
+	endDate := startDate.AddDate(0, 1, 0) // End of current month
+
+	if startDateStr != "" {
+		if t, err := time.Parse("2006-01-02", startDateStr); err == nil {
+			startDate = t
+		}
+	}
+	if endDateStr != "" {
+		if t, err := time.Parse("2006-01-02", endDateStr); err == nil {
+			endDate = t
+		}
+	}
+
+	bookings, err := h.service.ListBookingsByProperty(ctx, propertyID, &DateRange{
+		Start: startDate,
+		End:   endDate,
+	})
+	if err != nil {
+		return ErrorResponse(http.StatusInternalServerError, "Failed to get bookings: "+err.Error()), nil
+	}
+
+	occupied := make([]OccupiedDateRange, 0)
+	for _, b := range bookings {
+		// Only include non-cancelled and non-no-show bookings as occupied
+		if b.Status != StatusCancelled && b.Status != StatusNoShow {
+			occupied = append(occupied, OccupiedDateRange{
+				CheckIn:  b.CheckIn,
+				CheckOut: b.CheckOut,
+				Status:   string(b.Status),
+			})
+		}
+	}
+
+	return APIResponse(http.StatusOK, map[string]interface{}{
+		"propertyId": propertyID,
+		"startDate":  startDate.Format("2006-01-02"),
+		"endDate":    endDate.Format("2006-01-02"),
+		"occupied":   occupied,
+	}), nil
+}
