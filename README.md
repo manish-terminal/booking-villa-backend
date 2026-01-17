@@ -25,7 +25,7 @@ sam deploy --guided
 
 # API Reference
 
-**Base URL**: `https://YOUR_API_ID.execute-api.ap-south-1.amazonaws.com/prod`
+**Base URL**: `https://vwn08g3i79.execute-api.ap-south-1.amazonaws.com/prod`
 
 ---
 

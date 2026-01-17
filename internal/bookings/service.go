@@ -163,7 +163,7 @@ func (s *Service) UpdateBookingStatus(ctx context.Context, id string, status Boo
 
 	params := db.UpdateParams{
 		UpdateExpression: "SET #status = :status, updatedAt = :updatedAt",
-		ExpressionValues: map[string]string{
+		ExpressionValues: map[string]interface{}{
 			":status":    string(status),
 			":updatedAt": now,
 		},
@@ -184,7 +184,7 @@ type DateRange struct {
 // ListBookingsByProperty retrieves bookings for a property within a date range.
 func (s *Service) ListBookingsByProperty(ctx context.Context, propertyID string, dateRange *DateRange) ([]*Booking, error) {
 	keyCondition := "GSI1PK = :gsi1pk"
-	expressionValues := map[string]string{
+	expressionValues := map[string]interface{}{
 		":gsi1pk": "PROPERTY#" + propertyID,
 	}
 

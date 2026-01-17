@@ -66,7 +66,7 @@ func (s *Service) UpdateUserStatus(ctx context.Context, phone string, status Use
 
 	params := db.UpdateParams{
 		UpdateExpression: "SET #status = :status, updatedAt = :updatedAt, approvedBy = :approvedBy, approvedAt = :approvedAt",
-		ExpressionValues: map[string]string{
+		ExpressionValues: map[string]interface{}{
 			":status":     string(status),
 			":updatedAt":  now,
 			":approvedBy": approvedBy,
@@ -88,7 +88,7 @@ func (s *Service) UpdatePassword(ctx context.Context, phone string, hashedPasswo
 
 	params := db.UpdateParams{
 		UpdateExpression: "SET passwordHash = :passwordHash, updatedAt = :updatedAt",
-		ExpressionValues: map[string]string{
+		ExpressionValues: map[string]interface{}{
 			":passwordHash": hashedPassword,
 			":updatedAt":    now,
 		},
@@ -102,7 +102,7 @@ func (s *Service) ListUsersByRole(ctx context.Context, role Role) ([]*User, erro
 	params := db.QueryParams{
 		IndexName:    "GSI1",
 		KeyCondition: "GSI1PK = :gsi1pk",
-		ExpressionValues: map[string]string{
+		ExpressionValues: map[string]interface{}{
 			":gsi1pk": "ROLE#" + string(role),
 		},
 	}

@@ -120,8 +120,8 @@ func (s *OTPService) VerifyOTP(ctx context.Context, phone, code string) (bool, e
 	// Mark as verified
 	err = s.db.UpdateItem(ctx, pk, sk, db.UpdateParams{
 		UpdateExpression: "SET verified = :verified",
-		ExpressionValues: map[string]string{
-			":verified": "true",
+		ExpressionValues: map[string]interface{}{
+			":verified": true,
 		},
 	})
 	if err != nil {
@@ -136,7 +136,7 @@ func (s *OTPService) VerifyOTP(ctx context.Context, phone, code string) (bool, e
 func (s *OTPService) CleanupExpiredOTPs(ctx context.Context, phone string) error {
 	params := db.QueryParams{
 		KeyCondition: "PK = :pk",
-		ExpressionValues: map[string]string{
+		ExpressionValues: map[string]interface{}{
 			":pk": "OTP#" + phone,
 		},
 	}

@@ -106,16 +106,19 @@ func (c *Client) GetItem(ctx context.Context, pk, sk string, out interface{}) er
 
 // Query executes a query on the main table or GSI.
 func (c *Client) Query(ctx context.Context, params QueryParams) ([]map[string]types.AttributeValue, error) {
+	exprValues := make(map[string]types.AttributeValue)
+	for k, v := range params.ExpressionValues {
+		av, err := attributevalue.Marshal(v)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal expression value %s: %w", k, err)
+		}
+		exprValues[k] = av
+	}
+
 	input := &dynamodb.QueryInput{
-		TableName:              aws.String(c.tableName),
-		KeyConditionExpression: aws.String(params.KeyCondition),
-		ExpressionAttributeValues: func() map[string]types.AttributeValue {
-			values := make(map[string]types.AttributeValue)
-			for k, v := range params.ExpressionValues {
-				values[k] = &types.AttributeValueMemberS{Value: v}
-			}
-			return values
-		}(),
+		TableName:                 aws.String(c.tableName),
+		KeyConditionExpression:    aws.String(params.KeyCondition),
+		ExpressionAttributeValues: exprValues,
 	}
 
 	if params.IndexName != "" {
@@ -146,7 +149,7 @@ func (c *Client) Query(ctx context.Context, params QueryParams) ([]map[string]ty
 type QueryParams struct {
 	KeyCondition     string
 	FilterExpression string
-	ExpressionValues map[string]string
+	ExpressionValues map[string]interface{}
 	IndexName        string
 	Limit            int32
 	ScanIndexForward *bool
@@ -156,7 +159,11 @@ type QueryParams struct {
 func (c *Client) UpdateItem(ctx context.Context, pk, sk string, params UpdateParams) error {
 	exprValues := make(map[string]types.AttributeValue)
 	for k, v := range params.ExpressionValues {
-		exprValues[k] = &types.AttributeValueMemberS{Value: v}
+		av, err := attributevalue.Marshal(v)
+		if err != nil {
+			return fmt.Errorf("failed to marshal expression value %s: %w", k, err)
+		}
+		exprValues[k] = av
 	}
 
 	input := &dynamodb.UpdateItemInput{
@@ -189,7 +196,7 @@ func (c *Client) UpdateItem(ctx context.Context, pk, sk string, params UpdatePar
 type UpdateParams struct {
 	UpdateExpression         string
 	ConditionExpression      string
-	ExpressionValues         map[string]string
+	ExpressionValues         map[string]interface{}
 	ExpressionAttributeNames map[string]string
 }
 

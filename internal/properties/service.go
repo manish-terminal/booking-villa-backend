@@ -135,7 +135,7 @@ func (s *Service) ListPropertiesByOwner(ctx context.Context, ownerID string) ([]
 	params := db.QueryParams{
 		IndexName:    "GSI1",
 		KeyCondition: "GSI1PK = :gsi1pk",
-		ExpressionValues: map[string]string{
+		ExpressionValues: map[string]interface{}{
 			":gsi1pk": "OWNER#" + ownerID,
 		},
 	}
@@ -206,7 +206,7 @@ func (s *Service) ValidateInviteCode(ctx context.Context, code string) (*InviteC
 	// Query by PK to find the invite code
 	params := db.QueryParams{
 		KeyCondition: "PK = :pk",
-		ExpressionValues: map[string]string{
+		ExpressionValues: map[string]interface{}{
 			":pk": "INVITE#" + code,
 		},
 	}
@@ -248,7 +248,7 @@ func (s *Service) UseInviteCode(ctx context.Context, code, propertyID string) er
 
 	params := db.UpdateParams{
 		UpdateExpression: "SET usedCount = usedCount + :inc",
-		ExpressionValues: map[string]string{
+		ExpressionValues: map[string]interface{}{
 			":inc": "1",
 		},
 	}
@@ -261,7 +261,7 @@ func (s *Service) ListInviteCodesByProperty(ctx context.Context, propertyID stri
 	params := db.QueryParams{
 		IndexName:    "GSI1",
 		KeyCondition: "GSI1PK = :gsi1pk",
-		ExpressionValues: map[string]string{
+		ExpressionValues: map[string]interface{}{
 			":gsi1pk": "PROPERTY#" + propertyID,
 		},
 	}
@@ -292,7 +292,7 @@ func (s *Service) DeactivateInviteCode(ctx context.Context, code, propertyID str
 
 	params := db.UpdateParams{
 		UpdateExpression: "SET isActive = :isActive",
-		ExpressionValues: map[string]string{
+		ExpressionValues: map[string]interface{}{
 			":isActive": "false",
 		},
 	}

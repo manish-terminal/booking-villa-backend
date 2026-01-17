@@ -172,7 +172,7 @@ func (s *Service) GetAgentAnalytics(ctx context.Context, agentPhone string, star
 
 	allBookingsParams := db.QueryParams{
 		KeyCondition: "GSI1PK = :gsi1pk",
-		ExpressionValues: map[string]string{
+		ExpressionValues: map[string]interface{}{
 			":gsi1pk": "AGENT#" + agentPhone,
 		},
 		IndexName: "GSI1",

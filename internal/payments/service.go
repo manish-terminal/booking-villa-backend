@@ -141,7 +141,7 @@ func (s *Service) LogPayment(ctx context.Context, payment *Payment) error {
 func (s *Service) GetPaymentsByBooking(ctx context.Context, bookingID string) ([]*Payment, error) {
 	params := db.QueryParams{
 		KeyCondition: "PK = :pk",
-		ExpressionValues: map[string]string{
+		ExpressionValues: map[string]interface{}{
 			":pk": "PAYMENT#" + bookingID,
 		},
 	}
