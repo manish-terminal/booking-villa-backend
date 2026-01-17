@@ -576,6 +576,111 @@ Get payment status summary.
 
 ---
 
+## Analytics
+
+### GET /analytics/owner
+Get owner analytics (Owner/Admin only).
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Query Params:**
+- `startDate` (optional, format: YYYY-MM-DD, default: start of month)
+- `endDate` (optional, format: YYYY-MM-DD, default: end of month)
+
+**Response (200):**
+```json
+{
+  "totalProperties": 3,
+  "totalBookings": 25,
+  "totalRevenue": 125000,
+  "totalCollected": 100000,
+  "totalPending": 25000,
+  "currency": "INR",
+  "bookingsByStatus": {
+    "confirmed": 15,
+    "pending_confirmation": 5,
+    "checked_out": 5
+  },
+  "paymentsByStatus": {
+    "completed": 18,
+    "due": 5,
+    "pending": 2
+  },
+  "propertyStats": [
+    {
+      "propertyId": "550e8400-e29b-41d4-a716-446655440000",
+      "propertyName": "Beach Villa",
+      "totalBookings": 10,
+      "totalRevenue": 50000,
+      "totalCollected": 40000,
+      "occupancyDays": 35
+    }
+  ],
+  "periodStart": "2026-01-01T00:00:00Z",
+  "periodEnd": "2026-01-31T23:59:59Z"
+}
+```
+
+---
+
+### GET /analytics/agent
+Get agent analytics (any authenticated user).
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Query Params:**
+- `startDate` (optional)
+- `endDate` (optional)
+
+**Response (200):**
+```json
+{
+  "totalBookings": 12,
+  "totalBookingValue": 60000,
+  "totalCollected": 45000,
+  "currency": "INR",
+  "bookingsByStatus": {
+    "confirmed": 8,
+    "pending_confirmation": 4
+  },
+  "recentBookings": [
+    {
+      "bookingId": "660e8400-e29b-41d4-a716-446655440001",
+      "propertyName": "Beach Villa",
+      "guestName": "John Doe",
+      "checkIn": "2026-02-01T00:00:00Z",
+      "checkOut": "2026-02-05T00:00:00Z",
+      "totalAmount": 20000,
+      "status": "confirmed",
+      "paymentStatus": "due"
+    }
+  ],
+  "periodStart": "2026-01-01T00:00:00Z",
+  "periodEnd": "2026-01-31T23:59:59Z"
+}
+```
+
+---
+
+### GET /analytics/dashboard
+Get quick dashboard stats.
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Response (200):**
+```json
+{
+  "todayCheckIns": 2,
+  "todayCheckOuts": 1,
+  "pendingApprovals": 3,
+  "pendingPayments": 5,
+  "totalDueAmount": 25000,
+  "currency": "INR"
+}
+```
+
+---
+
 ## Error Responses
 
 All errors follow this format:
