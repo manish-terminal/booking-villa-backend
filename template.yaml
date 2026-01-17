@@ -125,6 +125,12 @@ Resources:
             RestApiId: !Ref BookingApi
             Path: /properties/{id}/invite-codes
             Method: POST
+        ListInviteCodes:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BookingApi
+            Path: /properties/{id}/invite-codes
+            Method: GET
         ValidateInviteCode:
           Type: Api
           Properties:
