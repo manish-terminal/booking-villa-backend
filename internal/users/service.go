@@ -166,3 +166,25 @@ func (s *Service) GetOrCreateUser(ctx context.Context, phone, name string, role 
 
 	return newUser, true, nil
 }
+
+// LinkProperty associates a property with a user (agent).
+func (s *Service) LinkProperty(ctx context.Context, phone, propertyID string) error {
+	pk := "USER#" + phone
+	sk := "PROFILE"
+	now := time.Now().Format(time.RFC3339)
+
+	// Use list_append to add propertyID to ManagedProperties if it doesn't already exist
+	// In a complete implementation, we'd check if it already exists in the list.
+	// For now, we'll use a simple UpdateItem that sets/appends.
+
+	params := db.UpdateParams{
+		UpdateExpression: "SET managedProperties = list_append(if_not_exists(managedProperties, :empty_list), :property_id), updatedAt = :updatedAt",
+		ExpressionValues: map[string]interface{}{
+			":property_id": []string{propertyID},
+			":empty_list":  []string{},
+			":updatedAt":   now,
+		},
+	}
+
+	return s.db.UpdateItem(ctx, pk, sk, params)
+}

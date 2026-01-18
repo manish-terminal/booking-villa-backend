@@ -9,17 +9,20 @@ import (
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/booking-villa-backend/internal/db"
 	"github.com/booking-villa-backend/internal/middleware"
+	"github.com/booking-villa-backend/internal/users"
 )
 
 // Handler provides HTTP handlers for property endpoints.
 type Handler struct {
-	service *Service
+	service     *Service
+	userService *users.Service
 }
 
 // NewHandler creates a new property handler.
 func NewHandler(dbClient *db.Client) *Handler {
 	return &Handler{
-		service: NewService(dbClient),
+		service:     NewService(dbClient),
+		userService: users.NewService(dbClient),
 	}
 }
 
@@ -232,16 +235,23 @@ func (h *Handler) HandleListProperties(ctx context.Context, request events.APIGa
 		return ErrorResponse(http.StatusUnauthorized, "Unauthorized"), nil
 	}
 
-	// For owners, list their properties
-	// For admins, could list all (would need scan or different pattern)
-	properties, err := h.service.ListPropertiesByOwner(ctx, claims.Phone)
+	var props []*Property
+	var err error
+
+	if claims.Role == string(users.RoleAgent) {
+		props, err = h.service.ListPropertiesByAgent(ctx, claims.Phone, h.userService)
+	} else {
+		// For owners, list their properties
+		props, err = h.service.ListPropertiesByOwner(ctx, claims.Phone)
+	}
+
 	if err != nil {
-		return ErrorResponse(http.StatusInternalServerError, "Failed to list properties"), nil
+		return ErrorResponse(http.StatusInternalServerError, "Failed to list properties: "+err.Error()), nil
 	}
 
 	return APIResponse(http.StatusOK, map[string]interface{}{
-		"properties": properties,
-		"count":      len(properties),
+		"properties": props,
+		"count":      len(props),
 	}), nil
 }
 
@@ -307,6 +317,12 @@ type ValidateInviteCodeRequest struct {
 
 // HandleValidateInviteCode handles the POST /invite-codes/validate endpoint.
 func (h *Handler) HandleValidateInviteCode(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+	// Require authentication to link agent to property
+	claims, ok := middleware.GetClaimsFromContext(ctx)
+	if !ok {
+		return ErrorResponse(http.StatusUnauthorized, "Authentication required to validate invite code"), nil
+	}
+
 	var req ValidateInviteCodeRequest
 	if err := json.Unmarshal([]byte(request.Body), &req); err != nil {
 		return ErrorResponse(http.StatusBadRequest, "Invalid request body"), nil
@@ -321,10 +337,15 @@ func (h *Handler) HandleValidateInviteCode(ctx context.Context, request events.A
 		return ErrorResponse(http.StatusBadRequest, err.Error()), nil
 	}
 
+	// Link agent to property
+	if err := h.userService.LinkProperty(ctx, claims.Phone, inviteCode.PropertyID); err != nil {
+		return ErrorResponse(http.StatusInternalServerError, "Failed to link property to account: "+err.Error()), nil
+	}
+
 	return APIResponse(http.StatusOK, map[string]interface{}{
 		"valid":      true,
 		"inviteCode": inviteCode,
-		"message":    "Invite code is valid",
+		"message":    "Invite code validated and property linked successfully",
 	}), nil
 }
 

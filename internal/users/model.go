@@ -52,12 +52,13 @@ type User struct {
 	GSI1SK string `dynamodbav:"GSI1SK,omitempty"` // USER#<phone>
 
 	// User fields
-	Phone        string     `dynamodbav:"phone" json:"phone"`
-	Name         string     `dynamodbav:"name" json:"name"`
-	Email        string     `dynamodbav:"email,omitempty" json:"email,omitempty"`
-	Role         Role       `dynamodbav:"role" json:"role"`
-	Status       UserStatus `dynamodbav:"status" json:"status"`
-	PasswordHash string     `dynamodbav:"passwordHash,omitempty" json:"-"`
+	Phone             string     `dynamodbav:"phone" json:"phone"`
+	Name              string     `dynamodbav:"name" json:"name"`
+	Email             string     `dynamodbav:"email,omitempty" json:"email,omitempty"`
+	Role              Role       `dynamodbav:"role" json:"role"`
+	Status            UserStatus `dynamodbav:"status" json:"status"`
+	PasswordHash      string     `dynamodbav:"passwordHash,omitempty" json:"-"`
+	ManagedProperties []string   `dynamodbav:"managedProperties,omitempty" json:"managedProperties,omitempty"`
 
 	// Metadata
 	CreatedAt  time.Time  `dynamodbav:"createdAt" json:"createdAt"`
@@ -73,17 +74,18 @@ type User struct {
 func NewUser(phone, name string, role Role) *User {
 	now := time.Now()
 	return &User{
-		PK:         "USER#" + phone,
-		SK:         "PROFILE",
-		GSI1PK:     "ROLE#" + string(role),
-		GSI1SK:     "USER#" + phone,
-		Phone:      phone,
-		Name:       name,
-		Role:       role,
-		Status:     StatusApproved, // Users are auto-approved on OTP verification
-		CreatedAt:  now,
-		UpdatedAt:  now,
-		EntityType: "USER",
+		PK:                "USER#" + phone,
+		SK:                "PROFILE",
+		GSI1PK:            "ROLE#" + string(role),
+		GSI1SK:            "USER#" + phone,
+		Phone:             phone,
+		Name:              name,
+		Role:              role,
+		Status:            StatusApproved, // Users are auto-approved on OTP verification
+		CreatedAt:         now,
+		UpdatedAt:         now,
+		EntityType:        "USER",
+		ManagedProperties: []string{},
 	}
 }
 
@@ -105,24 +107,26 @@ func (u *User) CanLogin() bool {
 
 // UserResponse is the API response representation of a user.
 type UserResponse struct {
-	Phone     string     `json:"phone"`
-	Name      string     `json:"name"`
-	Email     string     `json:"email,omitempty"`
-	Role      Role       `json:"role"`
-	Status    UserStatus `json:"status"`
-	CreatedAt time.Time  `json:"createdAt"`
-	UpdatedAt time.Time  `json:"updatedAt"`
+	Phone             string     `json:"phone"`
+	Name              string     `json:"name"`
+	Email             string     `json:"email,omitempty"`
+	Role              Role       `json:"role"`
+	Status            UserStatus `json:"status"`
+	ManagedProperties []string   `json:"managedProperties,omitempty"`
+	CreatedAt         time.Time  `json:"createdAt"`
+	UpdatedAt         time.Time  `json:"updatedAt"`
 }
 
 // ToResponse converts a User to a UserResponse.
 func (u *User) ToResponse() UserResponse {
 	return UserResponse{
-		Phone:     u.Phone,
-		Name:      u.Name,
-		Email:     u.Email,
-		Role:      u.Role,
-		Status:    u.Status,
-		CreatedAt: u.CreatedAt,
-		UpdatedAt: u.UpdatedAt,
+		Phone:             u.Phone,
+		Name:              u.Name,
+		Email:             u.Email,
+		Role:              u.Role,
+		Status:            u.Status,
+		ManagedProperties: u.ManagedProperties,
+		CreatedAt:         u.CreatedAt,
+		UpdatedAt:         u.UpdatedAt,
 	}
 }

@@ -11,6 +11,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/booking-villa-backend/internal/db"
+	"github.com/booking-villa-backend/internal/users"
 	"github.com/google/uuid"
 )
 
@@ -240,7 +241,47 @@ func (s *Service) ValidateInviteCode(ctx context.Context, code string) (*InviteC
 		return nil, fmt.Errorf("invite code has reached maximum uses")
 	}
 
+	// Increment used count
+	updateParams := db.UpdateParams{
+		UpdateExpression: "SET usedCount = usedCount + :inc",
+		ExpressionValues: map[string]interface{}{
+			":inc": 1,
+		},
+	}
+	if err := s.db.UpdateItem(ctx, inviteCode.PK, inviteCode.SK, updateParams); err != nil {
+		return nil, fmt.Errorf("failed to increment invite code use count: %w", err)
+	}
+
 	return &inviteCode, nil
+}
+
+// ListPropertiesByAgent retrieves all properties linked to an agent.
+func (s *Service) ListPropertiesByAgent(ctx context.Context, agentPhone string, userService *users.Service) ([]*Property, error) {
+	user, err := userService.GetUserByPhone(ctx, agentPhone)
+	if err != nil {
+		return nil, err
+	}
+	if user == nil {
+		return nil, fmt.Errorf("user not found")
+	}
+
+	if len(user.ManagedProperties) == 0 {
+		return []*Property{}, nil
+	}
+
+	// Fetch each associated property
+	properties := make([]*Property, 0, len(user.ManagedProperties))
+	for _, propID := range user.ManagedProperties {
+		prop, err := s.GetProperty(ctx, propID)
+		if err != nil {
+			continue // Skip failed fetches
+		}
+		if prop != nil {
+			properties = append(properties, prop)
+		}
+	}
+
+	return properties, nil
 }
 
 // UseInviteCode increments the usage count of an invite code.

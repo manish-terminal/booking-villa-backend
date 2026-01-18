@@ -103,9 +103,9 @@ func routeRequest(ctx context.Context, request events.APIGatewayProxyRequest) (e
 		return routeProperties(ctx, request, path, method)
 	}
 
-	// Invite code validation (public with optional auth)
+	// Invite code validation (requires auth to link user to property)
 	if path == "/invite-codes/validate" && method == "POST" {
-		return propertyHandler.HandleValidateInviteCode(ctx, request)
+		return authMiddleware.Authenticate(propertyHandler.HandleValidateInviteCode)(ctx, request)
 	}
 
 	// Booking routes
