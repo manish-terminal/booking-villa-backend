@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
@@ -203,6 +204,7 @@ func (s *Service) GenerateInviteCode(ctx context.Context, propertyID, createdBy 
 
 // ValidateInviteCode validates an invite code and returns it if valid.
 func (s *Service) ValidateInviteCode(ctx context.Context, code string) (*InviteCode, error) {
+	code = strings.ToLower(code)
 	// Query by PK to find the invite code
 	params := db.QueryParams{
 		KeyCondition: "PK = :pk",
