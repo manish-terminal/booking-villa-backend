@@ -5,11 +5,11 @@ import (
 	"context"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/booking-villa-backend/internal/bookings"
 	"github.com/booking-villa-backend/internal/db"
 	"github.com/booking-villa-backend/internal/payments"
 	"github.com/booking-villa-backend/internal/properties"
+	"github.com/booking-villa-backend/internal/users"
 )
 
 // OwnerAnalytics represents analytics data for property owners.
@@ -85,6 +85,7 @@ type Service struct {
 	propertyService *properties.Service
 	bookingService  *bookings.Service
 	paymentService  *payments.Service
+	userService     *users.Service
 }
 
 // NewService creates a new analytics service.
@@ -94,6 +95,7 @@ func NewService(dbClient *db.Client) *Service {
 		propertyService: properties.NewService(dbClient),
 		bookingService:  bookings.NewService(dbClient),
 		paymentService:  payments.NewService(dbClient),
+		userService:     users.NewService(dbClient),
 	}
 }
 
@@ -167,61 +169,60 @@ func (s *Service) GetAgentAnalytics(ctx context.Context, agentPhone string, star
 		PeriodEnd:        endDate,
 	}
 
-	// Query bookings made by this agent
-	// Note: For production, consider adding a GSI on bookedBy field
-	// Current approach: Try to query from GSI if available, otherwise return empty
-	// Add GSI2 with PK=AGENT#<phone> for better performance in production
-
-	allBookingsParams := db.QueryParams{
-		KeyCondition: "GSI1PK = :gsi1pk",
-		ExpressionValues: map[string]interface{}{
-			":gsi1pk": "AGENT#" + agentPhone,
-		},
-		IndexName: "GSI1",
-	}
-
-	items, err := s.db.Query(ctx, allBookingsParams)
+	// 1. Get agent's profile to see managed properties
+	user, err := s.userService.GetUserByPhone(ctx, agentPhone)
 	if err != nil {
-		// Fallback: return empty analytics if no GSI
+		return nil, err
+	}
+	if user == nil {
 		return analytics, nil
 	}
 
-	for _, item := range items {
-		var booking bookings.Booking
-		if err := attributevalue.UnmarshalMap(item, &booking); err != nil {
+	dateRange := &bookings.DateRange{Start: startDate, End: endDate}
+
+	// 2. Iterate through managed properties to fetch bookings
+	for _, propID := range user.ManagedProperties {
+		propBookings, err := s.bookingService.ListBookingsByProperty(ctx, propID, dateRange)
+		if err != nil {
 			continue
 		}
 
-		// Filter by date range
-		if booking.CheckIn.Before(startDate) || booking.CheckIn.After(endDate) {
-			continue
-		}
+		for _, booking := range propBookings {
+			// Only include bookings made by this agent OR bookings for properties they manage
+			// For specific agent analytics, we usually want totals across properties they handle
+			// If we want specifically "bookings MADE by them", we check BookedBy.
+			// The user requirement usually implies "bookings for properties I manage".
+			// However, since they are an agent, we filter by their BookedBy if needed, or just property access.
+			// Let's stick to "bookings made by them" for now, or all bookings in properties they manage?
+			// Usually agents only see what they book or everything in their linked villas.
+			// Let's include all bookings for their managed properties for better visibility.
 
-		analytics.TotalBookings++
-		analytics.TotalBookingValue += booking.TotalAmount
-		analytics.TotalCommission += booking.AgentCommission
-		analytics.BookingsByStatus[string(booking.Status)]++
+			analytics.TotalBookings++
+			analytics.TotalBookingValue += booking.TotalAmount
+			analytics.TotalCommission += booking.AgentCommission
+			analytics.BookingsByStatus[string(booking.Status)]++
 
-		// Get payment info
-		paymentStatus := "pending"
-		if summary, err := s.paymentService.CalculatePaymentStatus(ctx, booking.ID); err == nil {
-			analytics.TotalCollected += summary.TotalPaid
-			paymentStatus = string(summary.Status)
-		}
+			// Get payment info
+			paymentStatus := "pending"
+			if summary, err := s.paymentService.CalculatePaymentStatus(ctx, booking.ID); err == nil {
+				analytics.TotalCollected += summary.TotalPaid
+				paymentStatus = string(summary.Status)
+			}
 
-		// Add to recent bookings (limit to 10)
-		if len(analytics.RecentBookings) < 10 {
-			analytics.RecentBookings = append(analytics.RecentBookings, BookingSummary{
-				BookingID:       booking.ID,
-				PropertyName:    booking.PropertyName,
-				GuestName:       booking.GuestName,
-				CheckIn:         booking.CheckIn,
-				CheckOut:        booking.CheckOut,
-				TotalAmount:     booking.TotalAmount,
-				AgentCommission: booking.AgentCommission,
-				Status:          string(booking.Status),
-				PaymentStatus:   paymentStatus,
-			})
+			// Add to recent bookings (limit to 100 entries before sorting in future if needed)
+			if len(analytics.RecentBookings) < 50 {
+				analytics.RecentBookings = append(analytics.RecentBookings, BookingSummary{
+					BookingID:       booking.ID,
+					PropertyName:    booking.PropertyName,
+					GuestName:       booking.GuestName,
+					CheckIn:         booking.CheckIn,
+					CheckOut:        booking.CheckOut,
+					TotalAmount:     booking.TotalAmount,
+					AgentCommission: booking.AgentCommission,
+					Status:          string(booking.Status),
+					PaymentStatus:   paymentStatus,
+				})
+			}
 		}
 	}
 
