@@ -60,9 +60,10 @@ type Booking struct {
 	NumNights int       `dynamodbav:"numNights" json:"numNights"`
 
 	// Pricing
-	PricePerNight float64 `dynamodbav:"pricePerNight" json:"pricePerNight"`
-	TotalAmount   float64 `dynamodbav:"totalAmount" json:"totalAmount"`
-	Currency      string  `dynamodbav:"currency" json:"currency"`
+	PricePerNight   float64 `dynamodbav:"pricePerNight" json:"pricePerNight"`
+	TotalAmount     float64 `dynamodbav:"totalAmount" json:"totalAmount"`
+	AgentCommission float64 `dynamodbav:"agentCommission,omitempty" json:"agentCommission,omitempty"`
+	Currency        string  `dynamodbav:"currency" json:"currency"`
 
 	// Status
 	Status BookingStatus `dynamodbav:"status" json:"status"`

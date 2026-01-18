@@ -60,8 +60,9 @@ type CreateBookingRequest struct {
 	Notes           string  `json:"notes,omitempty"`
 	SpecialRequests string  `json:"specialRequests,omitempty"`
 	InviteCode      string  `json:"inviteCode,omitempty"`
-	PricePerNight   float64 `json:"pricePerNight,omitempty"` // Override property price if needed
-	TotalAmount     float64 `json:"totalAmount,omitempty"`   // Directly set total amount for dynamic pricing
+	PricePerNight   float64 `json:"pricePerNight,omitempty"`   // Override property price if needed
+	TotalAmount     float64 `json:"totalAmount,omitempty"`     // Directly set total amount for dynamic pricing
+	AgentCommission float64 `json:"agentCommission,omitempty"` // Commission for the agent
 }
 
 // HandleCreateBooking handles the POST /bookings endpoint.
@@ -171,6 +172,7 @@ func (h *Handler) HandleCreateBooking(ctx context.Context, request events.APIGat
 		InviteCode:      req.InviteCode,
 		Notes:           req.Notes,
 		SpecialRequests: req.SpecialRequests,
+		AgentCommission: req.AgentCommission,
 		Status:          StatusPendingConfirmation,
 	}
 

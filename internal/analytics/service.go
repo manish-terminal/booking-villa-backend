@@ -52,6 +52,7 @@ type AgentAnalytics struct {
 	TotalBookings     int     `json:"totalBookings"`
 	TotalBookingValue float64 `json:"totalBookingValue"`
 	TotalCollected    float64 `json:"totalCollected"`
+	TotalCommission   float64 `json:"totalCommission"`
 	Currency          string  `json:"currency"`
 
 	// Booking breakdown
@@ -67,14 +68,15 @@ type AgentAnalytics struct {
 
 // BookingSummary is a condensed booking for analytics.
 type BookingSummary struct {
-	BookingID     string    `json:"bookingId"`
-	PropertyName  string    `json:"propertyName"`
-	GuestName     string    `json:"guestName"`
-	CheckIn       time.Time `json:"checkIn"`
-	CheckOut      time.Time `json:"checkOut"`
-	TotalAmount   float64   `json:"totalAmount"`
-	Status        string    `json:"status"`
-	PaymentStatus string    `json:"paymentStatus"`
+	BookingID       string    `json:"bookingId"`
+	PropertyName    string    `json:"propertyName"`
+	GuestName       string    `json:"guestName"`
+	CheckIn         time.Time `json:"checkIn"`
+	CheckOut        time.Time `json:"checkOut"`
+	TotalAmount     float64   `json:"totalAmount"`
+	AgentCommission float64   `json:"agentCommission,omitempty"`
+	Status          string    `json:"status"`
+	PaymentStatus   string    `json:"paymentStatus"`
 }
 
 // Service provides analytics operations.
@@ -197,6 +199,7 @@ func (s *Service) GetAgentAnalytics(ctx context.Context, agentPhone string, star
 
 		analytics.TotalBookings++
 		analytics.TotalBookingValue += booking.TotalAmount
+		analytics.TotalCommission += booking.AgentCommission
 		analytics.BookingsByStatus[string(booking.Status)]++
 
 		// Get payment info
@@ -209,14 +212,15 @@ func (s *Service) GetAgentAnalytics(ctx context.Context, agentPhone string, star
 		// Add to recent bookings (limit to 10)
 		if len(analytics.RecentBookings) < 10 {
 			analytics.RecentBookings = append(analytics.RecentBookings, BookingSummary{
-				BookingID:     booking.ID,
-				PropertyName:  booking.PropertyName,
-				GuestName:     booking.GuestName,
-				CheckIn:       booking.CheckIn,
-				CheckOut:      booking.CheckOut,
-				TotalAmount:   booking.TotalAmount,
-				Status:        string(booking.Status),
-				PaymentStatus: paymentStatus,
+				BookingID:       booking.ID,
+				PropertyName:    booking.PropertyName,
+				GuestName:       booking.GuestName,
+				CheckIn:         booking.CheckIn,
+				CheckOut:        booking.CheckOut,
+				TotalAmount:     booking.TotalAmount,
+				AgentCommission: booking.AgentCommission,
+				Status:          string(booking.Status),
+				PaymentStatus:   paymentStatus,
 			})
 		}
 	}
