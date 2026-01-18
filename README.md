@@ -426,7 +426,8 @@ Create a booking.
   "specialRequests": "Vegetarian meals",
   "inviteCode": "a1b2c3d4",
   "pricePerNight": 5000,
-  "totalAmount": 20000
+  "totalAmount": 20000,
+  "agentCommission": 1000
 }
 ```
 
@@ -447,6 +448,7 @@ Create a booking.
   "numNights": 4,
   "pricePerNight": 5000,
   "totalAmount": 20000,
+  "agentCommission": 1000,
   "currency": "INR",
   "status": "pending_confirmation",
   "bookedBy": "9876543210",
@@ -685,6 +687,7 @@ Get agent analytics (any authenticated user).
   "totalBookings": 12,
   "totalBookingValue": 60000,
   "totalCollected": 45000,
+  "totalCommission": 3000,
   "currency": "INR",
   "bookingsByStatus": {
     "confirmed": 8,
@@ -698,6 +701,7 @@ Get agent analytics (any authenticated user).
       "checkIn": "2026-02-01T00:00:00Z",
       "checkOut": "2026-02-05T00:00:00Z",
       "totalAmount": 20000,
+      "agentCommission": 1000,
       "status": "confirmed",
       "paymentStatus": "due"
     }
