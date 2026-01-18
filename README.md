@@ -75,6 +75,7 @@ Verify OTP and get JWT token. Auto-creates user if new.
     "name": "John Doe",
     "role": "agent",
     "status": "approved",
+    "managedProperties": [],
     "createdAt": "2026-01-18T00:00:00Z",
     "updatedAt": "2026-01-18T00:00:00Z"
   },
@@ -370,21 +371,28 @@ Generate invite code for agents (Owner/Admin).
 ---
 
 ### POST /invite-codes/validate
-Validate an invite code (Public).
+Validate an invite code and link the property to the agent's account.
+
+**Headers:** `Authorization: Bearer <token>` (Required to link property)
 
 **Request:**
 ```json
 {
-  "code": "a1b2c3d4"
+  "code": "A1B2C3D4"
 }
 ```
+*Note: Code is case-insensitive.*
 
 **Response (200):**
 ```json
 {
   "valid": true,
-  "inviteCode": {...},
-  "message": "Invite code is valid"
+  "inviteCode": {
+    "code": "a1b2c3d4",
+    "propertyId": "550e8400-e29b-41d4-a716-446655440000",
+    ...
+  },
+  "message": "Invite code validated and property linked successfully"
 }
 ```
 
