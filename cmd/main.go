@@ -318,7 +318,7 @@ func routeBookings(ctx context.Context, request events.APIGatewayProxyRequest, p
 
 	// Check for booking status endpoint
 	if strings.HasSuffix(path, "/status") && method == "PATCH" {
-		return rbacMiddleware.RequireAdminOrOwner()(bookingHandler.HandleUpdateBookingStatus)(ctx, request)
+		return rbacMiddleware.RequireAny()(bookingHandler.HandleUpdateBookingStatus)(ctx, request)
 	}
 
 	switch {

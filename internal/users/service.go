@@ -188,3 +188,28 @@ func (s *Service) LinkProperty(ctx context.Context, phone, propertyID string) er
 
 	return s.db.UpdateItem(ctx, pk, sk, params)
 }
+
+// IsAuthorizedForProperty checks if a user has permission to manage a property.
+func (s *Service) IsAuthorizedForProperty(ctx context.Context, phone string, propertyID string) (bool, error) {
+	user, err := s.GetUserByPhone(ctx, phone)
+	if err != nil {
+		return false, err
+	}
+	if user == nil {
+		return false, nil
+	}
+
+	// Admins are always authorized
+	if user.Role == RoleAdmin {
+		return true, nil
+	}
+
+	// Check if user owns the property or is linked to it
+	for _, mp := range user.ManagedProperties {
+		if mp == propertyID {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}

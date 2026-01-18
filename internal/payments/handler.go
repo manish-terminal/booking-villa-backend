@@ -10,12 +10,14 @@ import (
 	"github.com/booking-villa-backend/internal/bookings"
 	"github.com/booking-villa-backend/internal/db"
 	"github.com/booking-villa-backend/internal/middleware"
+	"github.com/booking-villa-backend/internal/users"
 )
 
 // Handler provides HTTP handlers for payment endpoints.
 type Handler struct {
 	service        *Service
 	bookingService *bookings.Service
+	userService    *users.Service
 }
 
 // NewHandler creates a new payment handler.
@@ -23,6 +25,7 @@ func NewHandler(dbClient *db.Client) *Handler {
 	return &Handler{
 		service:        NewService(dbClient),
 		bookingService: bookings.NewService(dbClient),
+		userService:    users.NewService(dbClient),
 	}
 }
 
@@ -90,6 +93,17 @@ func (h *Handler) HandleLogPayment(ctx context.Context, request events.APIGatewa
 
 	if booking == nil {
 		return ErrorResponse(http.StatusNotFound, "Booking not found"), nil
+	}
+
+	// Permission check for agents
+	if claims.Role != string(users.RoleAdmin) && claims.Role != string(users.RoleOwner) {
+		authorized, err := h.userService.IsAuthorizedForProperty(ctx, claims.Phone, booking.PropertyID)
+		if err != nil {
+			return ErrorResponse(http.StatusInternalServerError, "Authorization check failed"), nil
+		}
+		if !authorized && booking.BookedBy != claims.Phone {
+			return ErrorResponse(http.StatusForbidden, "Insufficient permissions to log payment for this booking"), nil
+		}
 	}
 
 	// Parse payment date if provided

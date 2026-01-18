@@ -10,12 +10,14 @@ import (
 	"github.com/booking-villa-backend/internal/db"
 	"github.com/booking-villa-backend/internal/middleware"
 	"github.com/booking-villa-backend/internal/properties"
+	"github.com/booking-villa-backend/internal/users"
 )
 
 // Handler provides HTTP handlers for booking endpoints.
 type Handler struct {
 	service         *Service
 	propertyService *properties.Service
+	userService     *users.Service
 }
 
 // NewHandler creates a new booking handler.
@@ -23,6 +25,7 @@ func NewHandler(dbClient *db.Client) *Handler {
 	return &Handler{
 		service:         NewService(dbClient),
 		propertyService: properties.NewService(dbClient),
+		userService:     users.NewService(dbClient),
 	}
 }
 
@@ -264,6 +267,23 @@ func (h *Handler) HandleUpdateBookingStatus(ctx context.Context, request events.
 
 	if booking == nil {
 		return ErrorResponse(http.StatusNotFound, "Booking not found"), nil
+	}
+
+	// Permission check
+	claims, ok := middleware.GetClaimsFromContext(ctx)
+	if !ok {
+		return ErrorResponse(http.StatusUnauthorized, "Unauthorized"), nil
+	}
+
+	if claims.Role != string(users.RoleAdmin) && claims.Role != string(users.RoleOwner) {
+		// If agent, check if they are authorized for the property
+		authorized, err := h.userService.IsAuthorizedForProperty(ctx, claims.Phone, booking.PropertyID)
+		if err != nil {
+			return ErrorResponse(http.StatusInternalServerError, "Authorization check failed"), nil
+		}
+		if !authorized && booking.BookedBy != claims.Phone {
+			return ErrorResponse(http.StatusForbidden, "Insufficient permissions to update this booking"), nil
+		}
 	}
 
 	// Update status
