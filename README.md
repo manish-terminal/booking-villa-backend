@@ -952,6 +952,8 @@ Get agent-specific analytics (commissions, bookings).
 **Response (200):**
 ```json
 {
+  "agentName": "John Agent",
+  "agentPhone": "9876543210",
   "totalBookings": 12,
   "totalBookingValue": 60000,
   "totalCollected": 45000,

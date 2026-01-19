@@ -48,6 +48,10 @@ type PropertyStat struct {
 
 // AgentAnalytics represents analytics data for agents.
 type AgentAnalytics struct {
+	// Agent Info
+	AgentName  string `json:"agentName"`
+	AgentPhone string `json:"agentPhone"`
+
 	// Summary
 	TotalBookings     int     `json:"totalBookings"`
 	TotalBookingValue float64 `json:"totalBookingValue"`
@@ -162,6 +166,7 @@ func (s *Service) GetOwnerAnalytics(ctx context.Context, ownerID string, startDa
 // GetAgentAnalytics retrieves analytics for an agent.
 func (s *Service) GetAgentAnalytics(ctx context.Context, agentPhone string, startDate, endDate time.Time) (*AgentAnalytics, error) {
 	analytics := &AgentAnalytics{
+		AgentPhone:       agentPhone,
 		Currency:         "INR",
 		BookingsByStatus: make(map[string]int),
 		RecentBookings:   []BookingSummary{},
@@ -177,6 +182,9 @@ func (s *Service) GetAgentAnalytics(ctx context.Context, agentPhone string, star
 	if user == nil {
 		return analytics, nil
 	}
+
+	// Set agent name from user profile
+	analytics.AgentName = user.Name
 
 	dateRange := &bookings.DateRange{Start: startDate, End: endDate}
 
