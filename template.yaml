@@ -67,6 +67,12 @@ Resources:
             RestApiId: !Ref BookingApi
             Path: /auth/refresh
             Method: POST
+        CheckUser:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BookingApi
+            Path: /auth/check-user
+            Method: GET
 
         # User endpoints
         GetUser:
