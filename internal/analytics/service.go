@@ -240,44 +240,74 @@ type DashboardStats struct {
 }
 
 // GetDashboardStats retrieves quick dashboard stats.
-func (s *Service) GetDashboardStats(ctx context.Context, ownerID string) (*DashboardStats, error) {
+func (s *Service) GetDashboardStats(ctx context.Context, phone string) (*DashboardStats, error) {
 	stats := &DashboardStats{
 		Currency: "INR",
 	}
 
 	today := time.Now().Truncate(24 * time.Hour)
-	tomorrow := today.AddDate(0, 0, 1)
 
-	// Get owner's properties
-	props, err := s.propertyService.ListPropertiesByOwner(ctx, ownerID)
+	// 1. Get properties the user OWNS
+	props, err := s.propertyService.ListPropertiesByOwner(ctx, phone)
 	if err != nil {
-		return stats, nil
+		props = []*properties.Property{}
 	}
 
-	for _, prop := range props {
-		// Get today's bookings
-		dateRange := &bookings.DateRange{Start: today, End: tomorrow}
-		propBookings, err := s.bookingService.ListBookingsByProperty(ctx, prop.ID, dateRange)
+	// Create a map of property IDs to avoid duplicates
+	propertyIDs := make(map[string]bool)
+	for _, p := range props {
+		propertyIDs[p.ID] = true
+	}
+
+	// 2. Get properties the user MANAGES (for agents)
+	user, err := s.userService.GetUserByPhone(ctx, phone)
+	if err == nil && user != nil {
+		for _, propID := range user.ManagedProperties {
+			propertyIDs[propID] = true
+		}
+	}
+
+	// 3. Collect all relevant bookings for these properties
+	// We use a broad range (past 30 days to future 60 days) to catch:
+	// - Today's check-ins (check-in = today)
+	// - Today's check-outs (check-in < today, but check-out = today)
+	// - Pending approvals (usually upcoming or very recent)
+	// - Pending payments (can be past or upcoming)
+	dateRange := &bookings.DateRange{
+		Start: today.AddDate(0, 0, -30),
+		End:   today.AddDate(0, 0, 60),
+	}
+
+	for propID := range propertyIDs {
+		propBookings, err := s.bookingService.ListBookingsByProperty(ctx, propID, dateRange)
 		if err != nil {
 			continue
 		}
 
 		for _, booking := range propBookings {
+			// Today's Check-Ins
 			if booking.CheckIn.Truncate(24 * time.Hour).Equal(today) {
 				stats.TodayCheckIns++
 			}
+
+			// Today's Check-Outs
 			if booking.CheckOut.Truncate(24 * time.Hour).Equal(today) {
 				stats.TodayCheckOuts++
 			}
+
+			// Pending Approvals
 			if booking.Status == bookings.StatusPendingConfirmation {
 				stats.PendingApprovals++
 			}
 
-			// Check payment status
-			if summary, err := s.paymentService.CalculatePaymentStatus(ctx, booking.ID); err == nil {
-				if summary.Status != payments.PaymentStatusCompleted {
-					stats.PendingPayments++
-					stats.TotalDueAmount += summary.TotalDue
+			// Pending Payments & Due Amount
+			// We only count payments for bookings that are not cancelled
+			if booking.Status != bookings.StatusCancelled {
+				if summary, err := s.paymentService.CalculatePaymentStatus(ctx, booking.ID); err == nil {
+					if summary.Status != payments.PaymentStatusCompleted {
+						stats.PendingPayments++
+						stats.TotalDueAmount += summary.TotalDue
+					}
 				}
 			}
 		}

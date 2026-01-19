@@ -135,6 +135,9 @@ func routeAuth(ctx context.Context, request events.APIGatewayProxyRequest, path,
 	case path == "/auth/send-otp" && method == "POST":
 		return authHandler.HandleSendOTP(ctx, request)
 
+	case path == "/auth/check-user" && method == "GET":
+		return authHandler.HandleCheckUser(ctx, request)
+
 	case path == "/auth/verify-otp" && method == "POST":
 		return authHandler.HandleVerifyOTP(ctx, request)
 

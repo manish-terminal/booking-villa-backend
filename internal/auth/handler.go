@@ -67,6 +67,21 @@ func (h *Handler) HandleSendOTP(ctx context.Context, request events.APIGatewayPr
 	}), nil
 }
 
+// HandleCheckUser handles the GET /auth/check-user endpoint.
+func (h *Handler) HandleCheckUser(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+	phone := request.QueryStringParameters["phone"]
+	if phone == "" {
+		return ErrorResponse(http.StatusBadRequest, "Phone number is required"), nil
+	}
+
+	result, err := h.service.CheckUserExists(ctx, phone)
+	if err != nil {
+		return ErrorResponse(http.StatusInternalServerError, err.Error()), nil
+	}
+
+	return APIResponse(http.StatusOK, result), nil
+}
+
 // HandleVerifyOTP handles the POST /auth/verify-otp endpoint.
 func (h *Handler) HandleVerifyOTP(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 	var req VerifyOTPRequest

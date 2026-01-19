@@ -57,6 +57,44 @@ func (s *Service) SendOTP(ctx context.Context, phone string) (string, error) {
 	return code, nil
 }
 
+// CheckUserExistsResult contains the result of checking if a user exists.
+type CheckUserExistsResult struct {
+	Exists      bool   `json:"exists"`
+	HasPassword bool   `json:"hasPassword"`
+	Role        string `json:"role,omitempty"`
+	Status      string `json:"status,omitempty"`
+}
+
+// CheckUserExists checks if a user exists by phone number.
+func (s *Service) CheckUserExists(ctx context.Context, phone string) (*CheckUserExistsResult, error) {
+	if phone == "" {
+		return nil, fmt.Errorf("phone number is required")
+	}
+
+	// Validate phone format (basic validation)
+	if len(phone) < 10 {
+		return nil, fmt.Errorf("invalid phone number format")
+	}
+
+	user, err := s.userService.GetUserByPhone(ctx, phone)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check user: %w", err)
+	}
+
+	if user == nil {
+		return &CheckUserExistsResult{
+			Exists: false,
+		}, nil
+	}
+
+	return &CheckUserExistsResult{
+		Exists:      true,
+		HasPassword: user.HasPassword(),
+		Role:        string(user.Role),
+		Status:      string(user.Status),
+	}, nil
+}
+
 // VerifyOTPRequest represents a request to verify an OTP.
 type VerifyOTPRequest struct {
 	Phone      string     `json:"phone"`
