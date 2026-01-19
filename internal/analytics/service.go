@@ -14,6 +14,10 @@ import (
 
 // OwnerAnalytics represents analytics data for property owners.
 type OwnerAnalytics struct {
+	// Owner Info
+	OwnerName  string `json:"ownerName"`
+	OwnerPhone string `json:"ownerPhone"`
+
 	// Summary
 	TotalProperties int     `json:"totalProperties"`
 	TotalBookings   int     `json:"totalBookings"`
@@ -106,12 +110,19 @@ func NewService(dbClient *db.Client) *Service {
 // GetOwnerAnalytics retrieves analytics for a property owner.
 func (s *Service) GetOwnerAnalytics(ctx context.Context, ownerID string, startDate, endDate time.Time) (*OwnerAnalytics, error) {
 	analytics := &OwnerAnalytics{
+		OwnerPhone:       ownerID,
 		Currency:         "INR",
 		BookingsByStatus: make(map[string]int),
 		PaymentsByStatus: make(map[string]int),
 		PropertyStats:    []PropertyStat{},
 		PeriodStart:      startDate,
 		PeriodEnd:        endDate,
+	}
+
+	// Get owner's profile
+	user, err := s.userService.GetUserByPhone(ctx, ownerID)
+	if err == nil && user != nil {
+		analytics.OwnerName = user.Name
 	}
 
 	// Get owner's properties

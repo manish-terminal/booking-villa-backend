@@ -863,6 +863,8 @@ Get comprehensive owner analytics.
 **Response (200):**
 ```json
 {
+  "ownerName": "John Owner",
+  "ownerPhone": "9876543210",
   "totalProperties": 3,
   "totalBookings": 25,
   "totalRevenue": 125000,
