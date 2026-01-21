@@ -111,9 +111,8 @@ func (s *OTPService) SendOTP(ctx context.Context, phone string) (string, error) 
 	if s.smsClient != nil && s.smsClient.IsEnabled() {
 		if err := s.smsClient.SendOTP(ctx, phone, code, s.expiryMinutes); err != nil {
 			log.Printf("Failed to send OTP via SMS to %s: %v", phone, err)
-			// Don't fail the request - OTP is stored, user can request resend
-			// Return empty code to indicate SMS was attempted
-			return "", nil
+			// Return the error so the user knows SMS failed
+			return "", fmt.Errorf("SMS sending failed: %w", err)
 		}
 		log.Printf("OTP sent via SMS to %s", phone)
 		// Return empty code - OTP was sent via SMS

@@ -57,14 +57,24 @@ func (h *Handler) HandleSendOTP(ctx context.Context, request events.APIGatewayPr
 		return ErrorResponse(http.StatusInternalServerError, err.Error()), nil
 	}
 
-	// In production, don't return the code in response
-	// This is included for testing/development purposes
-	return APIResponse(http.StatusOK, map[string]interface{}{
+	// Build response
+	response := map[string]interface{}{
 		"message": "OTP sent successfully",
 		"phone":   req.Phone,
-		// Remove this in production:
-		"code": code,
-	}), nil
+	}
+
+	// If code is empty, SMS was sent (or attempted) via Brevo
+	// If code is present, SMS is not configured (dev mode)
+	if code == "" {
+		response["smsSent"] = true
+		response["note"] = "OTP sent via SMS. Check your phone."
+	} else {
+		response["smsSent"] = false
+		response["code"] = code
+		response["note"] = "SMS not configured. OTP returned in response for testing."
+	}
+
+	return APIResponse(http.StatusOK, response), nil
 }
 
 // HandleCheckUser handles the GET /auth/check-user endpoint.
