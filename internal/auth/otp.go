@@ -5,12 +5,14 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
+	"log"
 	"math/big"
 	"os"
 	"strconv"
 	"time"
 
 	"github.com/booking-villa-backend/internal/db"
+	"github.com/booking-villa-backend/internal/sms"
 )
 
 // OTP represents an OTP record in DynamoDB.
@@ -26,9 +28,16 @@ type OTP struct {
 	EntityType string `dynamodbav:"entityType"`
 }
 
+// SMSClient interface for sending SMS messages.
+type SMSClient interface {
+	SendOTP(ctx context.Context, phone, code string, expiryMinutes int) error
+	IsEnabled() bool
+}
+
 // OTPService handles OTP generation and verification.
 type OTPService struct {
 	db            *db.Client
+	smsClient     SMSClient
 	expiryMinutes int
 }
 
@@ -41,8 +50,17 @@ func NewOTPService(dbClient *db.Client) *OTPService {
 		}
 	}
 
+	// Initialize SMS client (will be nil if BREVO_API_KEY is not set)
+	smsClient := sms.NewClient()
+	if smsClient != nil && smsClient.IsEnabled() {
+		log.Println("SMS client initialized successfully - OTPs will be sent via Brevo")
+	} else {
+		log.Println("SMS client not configured - OTPs will be returned in response (development mode)")
+	}
+
 	return &OTPService{
 		db:            dbClient,
+		smsClient:     smsClient,
 		expiryMinutes: expiryMinutes,
 	}
 }
@@ -61,7 +79,8 @@ func (s *OTPService) GenerateOTP() (string, error) {
 }
 
 // SendOTP generates and stores an OTP for the given phone number.
-// In production, this would also send the OTP via SMS.
+// If SMS client is configured, the OTP is sent via SMS.
+// Returns the code only if SMS sending is disabled (for development/testing).
 func (s *OTPService) SendOTP(ctx context.Context, phone string) (string, error) {
 	code, err := s.GenerateOTP()
 	if err != nil {
@@ -88,8 +107,21 @@ func (s *OTPService) SendOTP(ctx context.Context, phone string) (string, error) 
 		return "", fmt.Errorf("failed to store OTP: %w", err)
 	}
 
-	// In production, integrate with SMS provider here
-	// For now, return the code (useful for testing)
+	// Send OTP via SMS if client is configured
+	if s.smsClient != nil && s.smsClient.IsEnabled() {
+		if err := s.smsClient.SendOTP(ctx, phone, code, s.expiryMinutes); err != nil {
+			log.Printf("Failed to send OTP via SMS to %s: %v", phone, err)
+			// Don't fail the request - OTP is stored, user can request resend
+			// Return empty code to indicate SMS was attempted
+			return "", nil
+		}
+		log.Printf("OTP sent via SMS to %s", phone)
+		// Return empty code - OTP was sent via SMS
+		return "", nil
+	}
+
+	// SMS not configured - return code in response (development mode)
+	log.Printf("SMS not configured - returning OTP in response for %s", phone)
 	return code, nil
 }
 

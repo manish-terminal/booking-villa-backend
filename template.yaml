@@ -14,6 +14,8 @@ Globals:
         TABLE_NAME: !Ref BookingTable
         JWT_SECRET: !Ref JWTSecret
         OTP_EXPIRY_MINUTES: "5"
+        BREVO_API_KEY: !Ref BrevoApiKey
+        BREVO_SMS_SENDER: !Ref BrevoSmsSender
 
 Parameters:
   JWTSecret:
@@ -21,6 +23,15 @@ Parameters:
     Description: Secret key for JWT signing
     NoEcho: true
     Default: "your-super-secret-jwt-key-change-in-production"
+  BrevoApiKey:
+    Type: String
+    Description: Brevo API key for sending OTP via SMS (optional - if not set, OTPs will be returned in response)
+    NoEcho: true
+    Default: ""
+  BrevoSmsSender:
+    Type: String
+    Description: SMS sender name (max 11 alphanumeric chars)
+    Default: "VillaBook"
 
 Resources:
   # API Gateway
