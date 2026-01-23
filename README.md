@@ -397,7 +397,9 @@ Create a booking.
   "inviteCode": "a1b2c3d4",
   "pricePerNight": 5000,
   "totalAmount": 20000,
-  "agentCommission": 1000
+  "agentCommission": 1000,
+  "advanceAmount": 5000,
+  "advanceMethod": "upi"
 }
 ```
 
@@ -416,6 +418,8 @@ Create a booking.
 | `pricePerNight` | int | No | Override property price |
 | `totalAmount` | int | No | Override calculated total |
 | `agentCommission` | int | No | Agent commission amount |
+| `advanceAmount` | number | No | Initial payment recorded |
+| `advanceMethod` | string | No | `cash`, `upi`, `bank_transfer`, etc. |
 
 **Response (201):**
 ```json
@@ -546,6 +550,9 @@ Update booking details. All fields are optional.
 | `checkOut` | string | New check-out (YYYY-MM-DD) |
 | `pricePerNight`| number | Updated price per night |
 | `totalAmount` | number | Updated total amount |
+| `agentCommission`| number | Updated agent commission |
+| `advanceAmount` | number | Updated advance amount |
+| `advanceMethod` | string | Updated advance method |
 | `notes` | string | Updated notes |
 | `specialRequests`| string | Updated special requests |
 

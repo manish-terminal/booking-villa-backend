@@ -183,7 +183,7 @@ func (s *Service) CalculatePaymentStatus(ctx context.Context, bookingID string) 
 	}
 
 	// Calculate totals
-	var totalPaid float64
+	totalPaid := booking.AdvanceAmount
 	var lastPaymentDate *time.Time
 
 	for _, payment := range payments {

@@ -67,6 +67,8 @@ type CreateBookingRequest struct {
 	PricePerNight   float64 `json:"pricePerNight,omitempty"`   // Override property price if needed
 	TotalAmount     float64 `json:"totalAmount,omitempty"`     // Directly set total amount for dynamic pricing
 	AgentCommission float64 `json:"agentCommission,omitempty"` // Commission for the agent
+	AdvanceAmount   float64 `json:"advanceAmount,omitempty"`   // Initial payment
+	AdvanceMethod   string  `json:"advanceMethod,omitempty"`   // cash, upi, etc.
 }
 
 // HandleCreateBooking handles the POST /bookings endpoint.
@@ -177,6 +179,8 @@ func (h *Handler) HandleCreateBooking(ctx context.Context, request events.APIGat
 		Notes:           req.Notes,
 		SpecialRequests: req.SpecialRequests,
 		AgentCommission: req.AgentCommission,
+		AdvanceAmount:   req.AdvanceAmount,
+		AdvanceMethod:   req.AdvanceMethod,
 		Status:          StatusPending,
 	}
 
@@ -279,6 +283,8 @@ type UpdateBookingRequest struct {
 	PricePerNight   *float64 `json:"pricePerNight,omitempty"`
 	TotalAmount     *float64 `json:"totalAmount,omitempty"`
 	AgentCommission *float64 `json:"agentCommission,omitempty"`
+	AdvanceAmount   *float64 `json:"advanceAmount,omitempty"`
+	AdvanceMethod   *string  `json:"advanceMethod,omitempty"`
 	Notes           *string  `json:"notes,omitempty"`
 	SpecialRequests *string  `json:"specialRequests,omitempty"`
 }
@@ -342,6 +348,12 @@ func (h *Handler) HandleUpdateBooking(ctx context.Context, request events.APIGat
 	}
 	if req.AgentCommission != nil {
 		booking.AgentCommission = *req.AgentCommission
+	}
+	if req.AdvanceAmount != nil {
+		booking.AdvanceAmount = *req.AdvanceAmount
+	}
+	if req.AdvanceMethod != nil {
+		booking.AdvanceMethod = *req.AdvanceMethod
 	}
 	if req.Notes != nil {
 		booking.Notes = *req.Notes

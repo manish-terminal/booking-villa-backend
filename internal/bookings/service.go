@@ -59,6 +59,8 @@ type Booking struct {
 	// Pricing
 	PricePerNight   float64 `dynamodbav:"pricePerNight" json:"pricePerNight"`
 	TotalAmount     float64 `dynamodbav:"totalAmount" json:"totalAmount"`
+	AdvanceAmount   float64 `dynamodbav:"advanceAmount,omitempty" json:"advanceAmount,omitempty"`
+	AdvanceMethod   string  `dynamodbav:"advanceMethod,omitempty" json:"advanceMethod,omitempty"`
 	AgentCommission float64 `dynamodbav:"agentCommission,omitempty" json:"agentCommission,omitempty"`
 	Currency        string  `dynamodbav:"currency" json:"currency"`
 
