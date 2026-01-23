@@ -232,6 +232,33 @@ Resources:
             RestApiId: !Ref BookingApi
             Path: /analytics/dashboard
             Method: GET
+
+        # Notification endpoints
+        ListNotifications:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BookingApi
+            Path: /notifications
+            Method: GET
+        MarkNotificationRead:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BookingApi
+            Path: /notifications/{id}/read
+            Method: PATCH
+        MarkAllNotificationsRead:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BookingApi
+            Path: /notifications/mark-all-read
+            Method: POST
+        GetUnreadCount:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BookingApi
+            Path: /notifications/count
+            Method: GET
+
         Health:
           Type: Api
           Properties:

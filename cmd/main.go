@@ -14,6 +14,7 @@ import (
 	"github.com/booking-villa-backend/internal/bookings"
 	"github.com/booking-villa-backend/internal/db"
 	"github.com/booking-villa-backend/internal/middleware"
+	"github.com/booking-villa-backend/internal/notifications"
 	"github.com/booking-villa-backend/internal/payments"
 	"github.com/booking-villa-backend/internal/properties"
 	"github.com/booking-villa-backend/internal/users"
@@ -21,15 +22,16 @@ import (
 
 // Global handlers (initialized once per Lambda cold start)
 var (
-	dbClient         *db.Client
-	authHandler      *auth.Handler
-	propertyHandler  *properties.Handler
-	bookingHandler   *bookings.Handler
-	paymentHandler   *payments.Handler
-	analyticsHandler *analytics.Handler
-	authMiddleware   *middleware.AuthMiddleware
-	rbacMiddleware   *middleware.RBACMiddleware
-	userService      *users.Service
+	dbClient            *db.Client
+	authHandler         *auth.Handler
+	propertyHandler     *properties.Handler
+	bookingHandler      *bookings.Handler
+	paymentHandler      *payments.Handler
+	analyticsHandler    *analytics.Handler
+	notificationHandler *notifications.Handler
+	authMiddleware      *middleware.AuthMiddleware
+	rbacMiddleware      *middleware.RBACMiddleware
+	userService         *users.Service
 )
 
 func init() {
@@ -44,7 +46,8 @@ func init() {
 	// Initialize handlers
 	authHandler = auth.NewHandler(dbClient)
 	propertyHandler = properties.NewHandler(dbClient)
-	bookingHandler = bookings.NewHandler(dbClient)
+	notificationHandler = notifications.NewHandler(dbClient)
+	bookingHandler = bookings.NewHandler(dbClient, notificationHandler.GetService())
 	paymentHandler = payments.NewHandler(dbClient)
 	analyticsHandler = analytics.NewHandler(dbClient)
 	userService = users.NewService(dbClient)
@@ -116,6 +119,11 @@ func routeRequest(ctx context.Context, request events.APIGatewayProxyRequest) (e
 	// Analytics routes
 	if strings.HasPrefix(path, "/analytics") {
 		return routeAnalytics(ctx, request, path, method)
+	}
+
+	// Notification routes
+	if strings.HasPrefix(path, "/notifications") {
+		return routeNotifications(ctx, request, path, method)
 	}
 
 	// Health check
@@ -353,6 +361,26 @@ func routeAnalytics(ctx context.Context, request events.APIGatewayProxyRequest, 
 
 	default:
 		return errorResponse(404, "Analytics endpoint not found"), nil
+	}
+}
+
+// routeNotifications handles notification routes.
+func routeNotifications(ctx context.Context, request events.APIGatewayProxyRequest, path, method string) (events.APIGatewayProxyResponse, error) {
+	switch {
+	case path == "/notifications" && method == "GET":
+		return authMiddleware.Authenticate(notificationHandler.HandleListNotifications)(ctx, request)
+
+	case path == "/notifications/count" && method == "GET":
+		return authMiddleware.Authenticate(notificationHandler.HandleGetUnreadCount)(ctx, request)
+
+	case path == "/notifications/mark-all-read" && method == "POST":
+		return authMiddleware.Authenticate(notificationHandler.HandleMarkAllAsRead)(ctx, request)
+
+	case strings.HasSuffix(path, "/read") && method == "PATCH":
+		return authMiddleware.Authenticate(notificationHandler.HandleMarkAsRead)(ctx, request)
+
+	default:
+		return errorResponse(404, "Notification endpoint not found"), nil
 	}
 }
 

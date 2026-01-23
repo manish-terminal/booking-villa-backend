@@ -3,29 +3,33 @@ package bookings
 import (
 	"context"
 	"encoding/json"
+	"log"
 	"net/http"
 	"time"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/booking-villa-backend/internal/db"
 	"github.com/booking-villa-backend/internal/middleware"
+	"github.com/booking-villa-backend/internal/notifications"
 	"github.com/booking-villa-backend/internal/properties"
 	"github.com/booking-villa-backend/internal/users"
 )
 
 // Handler provides HTTP handlers for booking endpoints.
 type Handler struct {
-	service         *Service
-	propertyService *properties.Service
-	userService     *users.Service
+	service             *Service
+	propertyService     *properties.Service
+	userService         *users.Service
+	notificationService *notifications.Service
 }
 
 // NewHandler creates a new booking handler.
-func NewHandler(dbClient *db.Client) *Handler {
+func NewHandler(dbClient *db.Client, notifService *notifications.Service) *Handler {
 	return &Handler{
-		service:         NewService(dbClient),
-		propertyService: properties.NewService(dbClient),
-		userService:     users.NewService(dbClient),
+		service:             NewService(dbClient),
+		propertyService:     properties.NewService(dbClient),
+		userService:         users.NewService(dbClient),
+		notificationService: notifService,
 	}
 }
 
@@ -180,6 +184,25 @@ func (h *Handler) HandleCreateBooking(ctx context.Context, request events.APIGat
 		return ErrorResponse(http.StatusInternalServerError, "Failed to create booking"), nil
 	}
 
+	// Send notification to property owner
+	if h.notificationService != nil {
+		go func() {
+			ctx := context.Background()
+			err := h.notificationService.CreateBookingNotification(
+				ctx,
+				property.OwnerID,
+				notifications.TypeBookingCreated,
+				booking.ID,
+				booking.PropertyID,
+				booking.PropertyName,
+				booking.GuestName,
+			)
+			if err != nil {
+				log.Printf("Failed to create notification: %v", err)
+			}
+		}()
+	}
+
 	return APIResponse(http.StatusCreated, booking), nil
 }
 
@@ -293,6 +316,44 @@ func (h *Handler) HandleUpdateBookingStatus(ctx context.Context, request events.
 		return ErrorResponse(http.StatusInternalServerError, "Failed to update booking status"), nil
 	}
 
+	// Send notifications for status change
+	if h.notificationService != nil {
+		go func() {
+			ctx := context.Background()
+			notifType := statusToNotificationType(req.Status)
+
+			// Get property to find owner
+			property, err := h.propertyService.GetProperty(ctx, booking.PropertyID)
+			if err == nil && property != nil {
+				// Notify owner if the updater is not the owner
+				if claims.Phone != property.OwnerID {
+					_ = h.notificationService.CreateBookingNotification(
+						ctx,
+						property.OwnerID,
+						notifType,
+						booking.ID,
+						booking.PropertyID,
+						booking.PropertyName,
+						booking.GuestName,
+					)
+				}
+
+				// Notify the agent who booked if they're not the one updating
+				if booking.BookedBy != "" && booking.BookedBy != claims.Phone && booking.BookedBy != property.OwnerID {
+					_ = h.notificationService.CreateBookingNotification(
+						ctx,
+						booking.BookedBy,
+						notifType,
+						booking.ID,
+						booking.PropertyID,
+						booking.PropertyName,
+						booking.GuestName,
+					)
+				}
+			}
+		}()
+	}
+
 	return APIResponse(http.StatusOK, map[string]interface{}{
 		"message":   "Booking status updated",
 		"bookingId": id,
@@ -396,4 +457,20 @@ func (h *Handler) HandleGetPropertyCalendar(ctx context.Context, request events.
 		"endDate":    endDate.Format("2006-01-02"),
 		"occupied":   occupied,
 	}), nil
+}
+
+// statusToNotificationType converts a booking status to a notification type.
+func statusToNotificationType(status BookingStatus) notifications.NotificationType {
+	switch status {
+	case StatusConfirmed:
+		return notifications.TypeBookingConfirmed
+	case StatusCancelled:
+		return notifications.TypeBookingCancelled
+	case StatusCheckedIn:
+		return notifications.TypeBookingCheckedIn
+	case StatusCheckedOut:
+		return notifications.TypeBookingCheckedOut
+	default:
+		return notifications.TypeBookingStatusChange
+	}
 }

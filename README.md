@@ -50,6 +50,10 @@ sam deploy --guided
 | `/bookings/{id}` | GET | Get booking details |
 | `/bookings/{id}/status` | PATCH | Marking Check-in / Check-out |
 | `/analytics/dashboard` | GET | Snapshot of today's arrivals/departures |
+| `/notifications` | GET | List in-app notifications |
+| `/notifications/count` | GET | Unread notification count |
+| `/notifications/mark-all-read` | POST | Mark all as read |
+| `/notifications/{id}/read` | PATCH | Mark single notification as read |
 
 ### 2. Owner-Only Endpoints
 
@@ -563,6 +567,85 @@ Get quick dashboard stats for today.
   "pendingPayments": 5,
   "totalDueAmount": 25000,
   "currency": "INR"
+}
+```
+
+---
+
+## Notifications
+
+### GET /notifications
+List notifications for the current user.
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Query Params:**
+
+| Param | Type | Required | Description |
+|-------|------|----------|-------------|
+| `limit` | int | No | Default: 50 |
+| `unreadOnly` | bool | No | Set to `true` for unread only |
+
+**Response (200):**
+```json
+{
+  "notifications": [
+    {
+      "id": "770e8400-e29b-41d4-a716-446655440003",
+      "type": "booking_created",
+      "title": "New Booking",
+      "message": "New booking created for Sunset Beach Villa by Jane Smith",
+      "bookingId": "660e8400-e29b-41d4-a716-446655440001",
+      "propertyId": "550e8400-e29b-41d4-a716-446655440000",
+      "isRead": false,
+      "createdAt": "2026-01-23T11:55:00Z"
+    }
+  ],
+  "count": 1
+}
+```
+
+---
+
+### GET /notifications/count
+Get the count of unread notifications.
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Response (200):**
+```json
+{
+  "unreadCount": 1
+}
+```
+
+---
+
+### PATCH /notifications/{id}/read
+Mark a specific notification as read.
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Response (200):**
+```json
+{
+  "message": "Notification marked as read",
+  "notificationId": "770e8400-e29b-41d4-a716-446655440003"
+}
+```
+
+---
+
+### POST /notifications/mark-all-read
+Mark all notifications for the current user as read.
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Response (200):**
+```json
+{
+  "message": "All notifications marked as read",
+  "count": 1
 }
 ```
 

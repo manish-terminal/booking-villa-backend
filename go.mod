@@ -8,14 +8,12 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.26.3
 	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.12.14
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.26.8
-	github.com/getbrevo/brevo-go v1.1.3
 	github.com/golang-jwt/jwt/v5 v5.2.0
 	github.com/google/uuid v1.6.0
 	golang.org/x/crypto v0.18.0
 )
 
 require (
-	github.com/antihax/optional v1.0.0 // indirect
 	github.com/aws/aws-sdk-go-v2/credentials v1.16.14 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.14.11 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.2.10 // indirect
@@ -29,6 +27,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.21.6 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.26.7 // indirect
 	github.com/aws/smithy-go v1.19.0 // indirect
+	github.com/google/go-cmp v0.5.9 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
-	golang.org/x/oauth2 v0.21.0 // indirect
 )
