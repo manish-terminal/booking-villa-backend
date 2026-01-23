@@ -9,7 +9,7 @@ A production-ready Go backend for a Hotel/Villa Booking Platform running on AWS 
 - **Role-Based Access Control**: Admin, Owner, Agent
 - **Property Management** with invite codes
 - **Booking System** with availability checking
-- **Offline Payment Tracking** (pending → due → completed)
+- **Offline Payment Tracking** (pending → partial → settled)
 
 ## Quick Start
 
@@ -48,7 +48,8 @@ sam deploy --guided
 | `/bookings` | POST | Finalizing a reservation |
 | `/bookings` | GET | Viewing lists of current stays |
 | `/bookings/{id}` | GET | Get booking details |
-| `/bookings/{id}/status` | PATCH | Marking Check-in / Check-out |
+| `/bookings/{id}` | PATCH | Update booking details (dates, guest info) |
+| `/bookings/{id}/status` | PATCH | Marking Progress (Pending/Partial/Settled) |
 | `/analytics/dashboard` | GET | Snapshot of today's arrivals/departures |
 | `/notifications` | GET | List in-app notifications |
 | `/notifications/count` | GET | Unread notification count |
@@ -433,7 +434,7 @@ Create a booking.
   "totalAmount": 20000,
   "agentCommission": 1000,
   "currency": "INR",
-  "status": "pending_confirmation",
+  "status": "pending",
   "bookedBy": "9876543210",
   "notes": "Early check-in requested",
   "createdAt": "2026-01-18T00:00:00Z",
@@ -519,7 +520,52 @@ Get booking by ID.
 }
 ```
 
+### PATCH /bookings/{id}
+Update booking details. All fields are optional.
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Request:**
+```json
+{
+  "guestName": "Jane Smith Updated",
+  "checkIn": "2026-02-02",
+  "checkOut": "2026-02-06",
+  "totalAmount": 22000,
+  "notes": "Late check-out requested"
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `guestName` | string | Updated guest name |
+| `guestPhone` | string | Updated guest phone |
+| `guestEmail` | string | Updated guest email |
+| `numGuests` | int | Updated number of guests |
+| `checkIn` | string | New check-in (YYYY-MM-DD) |
+| `checkOut` | string | New check-out (YYYY-MM-DD) |
+| `pricePerNight`| number | Updated price per night |
+| `totalAmount` | number | Updated total amount |
+| `notes` | string | Updated notes |
+| `specialRequests`| string | Updated special requests |
+
+**Response (200):**
+```json
+{
+  "id": "660e8400-e29b-41d4-a716-446655440001",
+  "propertyId": "550e8400-e29b-41d4-a716-446655440000",
+  "guestName": "Jane Smith Updated",
+  "checkIn": "2026-02-02T00:00:00Z",
+  "checkOut": "2026-02-06T00:00:00Z",
+  "numNights": 4,
+  "totalAmount": 22000,
+  "status": "pending",
+  "updatedAt": "2026-01-23T14:40:00Z"
+}
+```
+
 ---
+
 
 ### PATCH /bookings/{id}/status
 Update booking status.
@@ -535,12 +581,10 @@ Update booking status.
 
 | Status | Description |
 |--------|-------------|
-| `pending_confirmation` | Awaiting owner approval |
-| `confirmed` | Booking confirmed |
-| `checked_in` | Guest has arrived |
-| `checked_out` | Guest has departed |
+| `pending` | Booking created, no payment received |
+| `partial` | Partial payment received |
+| `settled` | Full payment received |
 | `cancelled` | Booking cancelled |
-| `no_show` | Guest did not arrive |
 
 **Response (200):**
 ```json
@@ -863,7 +907,7 @@ Log an offline payment.
     "totalAmount": 20000,
     "totalPaid": 10000,
     "totalDue": 10000,
-    "status": "due",
+    "status": "partial",
     "paymentCount": 1,
     "currency": "INR",
     "lastPaymentDate": "2026-01-18T00:00:00Z"

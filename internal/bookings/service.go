@@ -15,19 +15,16 @@ import (
 type BookingStatus string
 
 const (
-	StatusPendingConfirmation BookingStatus = "pending_confirmation"
-	StatusConfirmed           BookingStatus = "confirmed"
-	StatusCheckedIn           BookingStatus = "checked_in"
-	StatusCheckedOut          BookingStatus = "checked_out"
-	StatusCancelled           BookingStatus = "cancelled"
-	StatusNoShow              BookingStatus = "no_show"
+	StatusPending   BookingStatus = "pending"
+	StatusPartial   BookingStatus = "partial"
+	StatusSettled   BookingStatus = "settled"
+	StatusCancelled BookingStatus = "cancelled"
 )
 
 // IsValid checks if the booking status is valid.
 func (s BookingStatus) IsValid() bool {
 	switch s {
-	case StatusPendingConfirmation, StatusConfirmed, StatusCheckedIn,
-		StatusCheckedOut, StatusCancelled, StatusNoShow:
+	case StatusPending, StatusPartial, StatusSettled, StatusCancelled:
 		return true
 	}
 	return false
@@ -120,7 +117,7 @@ func (s *Service) CreateBooking(ctx context.Context, booking *Booking) error {
 
 	// Set default status
 	if booking.Status == "" {
-		booking.Status = StatusPendingConfirmation
+		booking.Status = StatusPending
 	}
 
 	// Set default currency
@@ -153,6 +150,9 @@ func (s *Service) UpdateBooking(ctx context.Context, booking *Booking) error {
 	booking.UpdatedAt = time.Now()
 	booking.PK = "BOOKING#" + booking.ID
 	booking.SK = "METADATA"
+	// Ensure GSI keys are updated in case PropertyID or CheckIn changed
+	booking.GSI1PK = "PROPERTY#" + booking.PropertyID
+	booking.GSI1SK = "DATE#" + booking.CheckIn.Format("2006-01-02")
 	return s.db.PutItem(ctx, booking)
 }
 
@@ -245,8 +245,8 @@ func (s *Service) CheckAvailability(ctx context.Context, propertyID string, chec
 
 	// Check for overlapping bookings
 	for _, booking := range bookings {
-		// Skip cancelled or no-show bookings
-		if booking.Status == StatusCancelled || booking.Status == StatusNoShow {
+		// Skip cancelled bookings
+		if booking.Status == StatusCancelled {
 			continue
 		}
 
@@ -265,17 +265,7 @@ func (s *Service) CancelBooking(ctx context.Context, id string) error {
 	return s.UpdateBookingStatus(ctx, id, StatusCancelled)
 }
 
-// ConfirmBooking confirms a pending booking.
+// ConfirmBooking marks a booking as settled.
 func (s *Service) ConfirmBooking(ctx context.Context, id string) error {
-	return s.UpdateBookingStatus(ctx, id, StatusConfirmed)
-}
-
-// CheckInBooking marks a booking as checked in.
-func (s *Service) CheckInBooking(ctx context.Context, id string) error {
-	return s.UpdateBookingStatus(ctx, id, StatusCheckedIn)
-}
-
-// CheckOutBooking marks a booking as checked out.
-func (s *Service) CheckOutBooking(ctx context.Context, id string) error {
-	return s.UpdateBookingStatus(ctx, id, StatusCheckedOut)
+	return s.UpdateBookingStatus(ctx, id, StatusSettled)
 }

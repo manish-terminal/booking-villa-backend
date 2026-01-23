@@ -342,6 +342,9 @@ func routeBookings(ctx context.Context, request events.APIGatewayProxyRequest, p
 	case strings.HasPrefix(path, "/bookings/") && method == "GET":
 		return authMiddleware.Authenticate(bookingHandler.HandleGetBooking)(ctx, request)
 
+	case strings.HasPrefix(path, "/bookings/") && method == "PATCH":
+		return rbacMiddleware.RequireAny()(bookingHandler.HandleUpdateBooking)(ctx, request)
+
 	default:
 		return errorResponse(404, "Booking endpoint not found"), nil
 	}

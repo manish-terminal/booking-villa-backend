@@ -180,6 +180,12 @@ Resources:
             RestApiId: !Ref BookingApi
             Path: /bookings/{id}/status
             Method: PATCH
+        EditBooking:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BookingApi
+            Path: /bookings/{id}
+            Method: PATCH
         CheckAvailability:
           Type: Api
           Properties:

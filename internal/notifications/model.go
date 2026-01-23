@@ -13,10 +13,9 @@ type NotificationType string
 
 const (
 	TypeBookingCreated      NotificationType = "booking_created"
-	TypeBookingConfirmed    NotificationType = "booking_confirmed"
+	TypeBookingSettled      NotificationType = "booking_settled"
+	TypeBookingPartial      NotificationType = "booking_partial"
 	TypeBookingCancelled    NotificationType = "booking_cancelled"
-	TypeBookingCheckedIn    NotificationType = "booking_checked_in"
-	TypeBookingCheckedOut   NotificationType = "booking_checked_out"
 	TypeBookingStatusChange NotificationType = "booking_status_changed"
 )
 

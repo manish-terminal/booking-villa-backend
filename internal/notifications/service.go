@@ -156,14 +156,12 @@ func generateBookingMessage(notifType NotificationType, propertyName, guestName 
 	switch notifType {
 	case TypeBookingCreated:
 		return "New Booking", fmt.Sprintf("New booking created for %s by %s", propertyName, guestName)
-	case TypeBookingConfirmed:
-		return "Booking Confirmed", fmt.Sprintf("Booking for %s has been confirmed", propertyName)
+	case TypeBookingSettled:
+		return "Booking Settled", fmt.Sprintf("Booking for %s has been fully settled", propertyName)
+	case TypeBookingPartial:
+		return "Payment Received", fmt.Sprintf("Partial payment received for %s", propertyName)
 	case TypeBookingCancelled:
 		return "Booking Cancelled", fmt.Sprintf("Booking for %s has been cancelled", propertyName)
-	case TypeBookingCheckedIn:
-		return "Guest Checked In", fmt.Sprintf("Guest %s has checked in at %s", guestName, propertyName)
-	case TypeBookingCheckedOut:
-		return "Guest Checked Out", fmt.Sprintf("Guest %s has checked out from %s", guestName, propertyName)
 	default:
 		return "Booking Update", fmt.Sprintf("Booking for %s has been updated", propertyName)
 	}

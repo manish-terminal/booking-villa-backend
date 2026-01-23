@@ -18,10 +18,10 @@ type PaymentStatus string
 const (
 	// PaymentStatusPending - No payments recorded yet
 	PaymentStatusPending PaymentStatus = "pending"
-	// PaymentStatusDue - Partial payment received, amount still due
-	PaymentStatusDue PaymentStatus = "due"
-	// PaymentStatusCompleted - Full payment received
-	PaymentStatusCompleted PaymentStatus = "completed"
+	// PaymentStatusPartial - Partial payment received, amount still due
+	PaymentStatusPartial PaymentStatus = "partial"
+	// PaymentStatusSettled - Full payment received
+	PaymentStatusSettled PaymentStatus = "settled"
 )
 
 // PaymentMethod represents the method used for offline payment.
@@ -201,10 +201,10 @@ func (s *Service) CalculatePaymentStatus(ctx context.Context, bookingID string) 
 	case len(payments) == 0:
 		status = PaymentStatusPending
 	case totalPaid >= booking.TotalAmount:
-		status = PaymentStatusCompleted
+		status = PaymentStatusSettled
 		totalDue = 0 // Ensure no negative due amount
 	default:
-		status = PaymentStatusDue
+		status = PaymentStatusPartial
 	}
 
 	return &PaymentSummary{

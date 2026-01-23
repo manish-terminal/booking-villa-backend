@@ -315,7 +315,7 @@ func (s *Service) GetDashboardStats(ctx context.Context, phone string) (*Dashboa
 			}
 
 			// Pending Approvals
-			if booking.Status == bookings.StatusPendingConfirmation {
+			if booking.Status == bookings.StatusPending {
 				stats.PendingApprovals++
 			}
 
@@ -323,7 +323,7 @@ func (s *Service) GetDashboardStats(ctx context.Context, phone string) (*Dashboa
 			// We only count payments for bookings that are not cancelled
 			if booking.Status != bookings.StatusCancelled {
 				if summary, err := s.paymentService.CalculatePaymentStatus(ctx, booking.ID); err == nil {
-					if summary.Status != payments.PaymentStatusCompleted {
+					if summary.Status != payments.PaymentStatusSettled {
 						stats.PendingPayments++
 						stats.TotalDueAmount += summary.TotalDue
 					}
