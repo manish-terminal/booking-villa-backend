@@ -29,6 +29,7 @@ var (
 	paymentHandler      *payments.Handler
 	analyticsHandler    *analytics.Handler
 	notificationHandler *notifications.Handler
+	userHandler         *users.Handler
 	authMiddleware      *middleware.AuthMiddleware
 	rbacMiddleware      *middleware.RBACMiddleware
 	userService         *users.Service
@@ -50,6 +51,19 @@ func init() {
 	bookingHandler = bookings.NewHandler(dbClient, notificationHandler.GetService())
 	paymentHandler = payments.NewHandler(dbClient)
 	analyticsHandler = analytics.NewHandler(dbClient)
+	// Create property lister function to avoid import cycle
+	propertyLister := func(ctx context.Context, ownerPhone string) ([]string, error) {
+		props, err := properties.NewService(dbClient).ListPropertiesByOwner(ctx, ownerPhone)
+		if err != nil {
+			return nil, err
+		}
+		ids := make([]string, len(props))
+		for i, p := range props {
+			ids[i] = p.ID
+		}
+		return ids, nil
+	}
+	userHandler = users.NewHandler(dbClient, propertyLister)
 	userService = users.NewService(dbClient)
 
 	// Initialize middleware
@@ -99,6 +113,11 @@ func routeRequest(ctx context.Context, request events.APIGatewayProxyRequest) (e
 	// User routes
 	if strings.HasPrefix(path, "/users") {
 		return routeUsers(ctx, request, path, method)
+	}
+
+	// Agent routes
+	if strings.HasPrefix(path, "/agents") {
+		return routeAgents(ctx, request, path, method)
 	}
 
 	// Property routes
@@ -374,6 +393,22 @@ func routeNotifications(ctx context.Context, request events.APIGatewayProxyReque
 
 	default:
 		return errorResponse(404, "Notification endpoint not found"), nil
+	}
+}
+
+// routeAgents handles agent management routes.
+func routeAgents(ctx context.Context, request events.APIGatewayProxyRequest, path, method string) (events.APIGatewayProxyResponse, error) {
+	// Check for status update endpoint (must be checked first)
+	if strings.HasSuffix(path, "/status") && method == "PATCH" {
+		return rbacMiddleware.RequireAdminOrOwner()(userHandler.HandleUpdateAgentStatus)(ctx, request)
+	}
+
+	switch {
+	case path == "/agents" && method == "GET":
+		return rbacMiddleware.RequireAdminOrOwner()(userHandler.HandleListAgents)(ctx, request)
+
+	default:
+		return errorResponse(404, "Agent endpoint not found"), nil
 	}
 }
 

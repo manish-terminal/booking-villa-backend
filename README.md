@@ -57,6 +57,8 @@ sam deploy --guided
 | `/notifications` | GET | List in-app notifications |
 | `/notifications/count` | GET | Unread notification count |
 | `/notifications/mark-all-read` | POST | Mark all as read |
+| `/agents` | GET | List agents (Owner/Admin) |
+| `/agents/{phone}/status` | PATCH | Activate/Deactivate agent |
 | `/notifications/{id}/read` | PATCH | Mark single notification as read |
 
 ### 2. Owner-Only Endpoints
@@ -703,6 +705,91 @@ Mark all notifications for the current user as read.
   "count": 1
 }
 ```
+
+---
+
+## Agent Management
+
+### GET /agents
+List agents accessible to the current user.
+
+**Headers:** `Authorization: Bearer <token>`  
+**Required Role:** Owner or Admin
+
+**Behavior:**
+- **Owner**: Returns only agents linked to their properties via invite codes
+- **Admin**: Returns all agents in the system
+
+**Response (200):**
+```json
+{
+  "agents": [
+    {
+      "phone": "9998887776",
+      "name": "John Agent",
+      "role": "agent",
+      "status": "approved",
+      "managedProperties": ["550e8400-e29b-41d4-a716-446655440000"],
+      "createdAt": "2026-01-18T00:00:00Z",
+      "updatedAt": "2026-01-18T00:00:00Z"
+    }
+  ],
+  "count": 1
+}
+```
+
+---
+
+### PATCH /agents/{phone}/status
+Activate or deactivate an agent.
+
+**Headers:** `Authorization: Bearer <token>`  
+**Required Role:** Owner (of linked property) or Admin
+
+**Path Params:**
+
+| Param | Type | Required | Description |
+|-------|------|----------|-------------|
+| `phone` | string | Yes | Agent's phone number |
+
+**Request:**
+```json
+{
+  "active": true
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `active` | boolean | Yes | `true` to activate, `false` to deactivate |
+
+**Response (200):**
+```json
+{
+  "agent": {
+    "phone": "9998887776",
+    "name": "John Agent",
+    "role": "agent",
+    "status": "approved",
+    "managedProperties": ["550e8400-e29b-41d4-a716-446655440000"],
+    "createdAt": "2026-01-18T00:00:00Z",
+    "updatedAt": "2026-01-23T10:30:00Z"
+  },
+  "message": "Agent status updated successfully"
+}
+```
+
+**Error Responses:**
+
+| Status | Error |
+|--------|-------|
+| 400 | `Agent phone is required` |
+| 400 | `User is not an agent` |
+| 403 | `You do not have permission to manage this agent` |
+| 404 | `Agent not found` |
+
+> [!NOTE]
+> Owners can only manage agents who have been linked to at least one of their properties through an invite code. Attempting to manage an unlinked agent will return a 403 Forbidden error.
 
 ---
 

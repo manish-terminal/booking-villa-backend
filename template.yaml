@@ -253,6 +253,32 @@ Resources:
             Path: /notifications/count
             Method: GET
 
+        # Agent endpoints
+        ListAgents:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BookingApi
+            Path: /agents
+            Method: GET
+        ListAgentsOptions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BookingApi
+            Path: /agents
+            Method: OPTIONS
+        UpdateAgentStatus:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BookingApi
+            Path: /agents/{phone}/status
+            Method: PATCH
+        UpdateAgentStatusOptions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BookingApi
+            Path: /agents/{phone}/status
+            Method: OPTIONS
+
         Health:
           Type: Api
           Properties:

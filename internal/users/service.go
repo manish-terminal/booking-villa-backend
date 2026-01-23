@@ -213,3 +213,45 @@ func (s *Service) IsAuthorizedForProperty(ctx context.Context, phone string, pro
 
 	return false, nil
 }
+
+// ListAgentsForOwner retrieves agents whose ManagedProperties overlap with owner's properties.
+// If ownerPropertyIDs is nil or empty, returns all agents (for Admin use).
+func (s *Service) ListAgentsForOwner(ctx context.Context, ownerPropertyIDs []string) ([]*User, error) {
+	allAgents, err := s.ListUsersByRole(ctx, RoleAgent)
+	if err != nil {
+		return nil, err
+	}
+
+	// If no property filter, return all agents (admin view)
+	if len(ownerPropertyIDs) == 0 {
+		return allAgents, nil
+	}
+
+	// Create a set of owner properties for fast lookup
+	ownerPropSet := make(map[string]bool)
+	for _, pid := range ownerPropertyIDs {
+		ownerPropSet[pid] = true
+	}
+
+	// Filter agents by property overlap
+	var filtered []*User
+	for _, agent := range allAgents {
+		for _, agentProp := range agent.ManagedProperties {
+			if ownerPropSet[agentProp] {
+				filtered = append(filtered, agent)
+				break
+			}
+		}
+	}
+
+	return filtered, nil
+}
+
+// SetAgentActive activates or deactivates an agent.
+func (s *Service) SetAgentActive(ctx context.Context, agentPhone string, isActive bool, setBy string) error {
+	status := StatusRejected
+	if isActive {
+		status = StatusApproved
+	}
+	return s.UpdateUserStatus(ctx, agentPhone, status, setBy)
+}
