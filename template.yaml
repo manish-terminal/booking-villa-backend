@@ -200,18 +200,6 @@ Resources:
             Method: GET
 
         # Payment endpoints
-        LogPayment:
-          Type: Api
-          Properties:
-            RestApiId: !Ref BookingApi
-            Path: /bookings/{id}/payments
-            Method: POST
-        GetPayments:
-          Type: Api
-          Properties:
-            RestApiId: !Ref BookingApi
-            Path: /bookings/{id}/payments
-            Method: GET
         GetPaymentStatus:
           Type: Api
           Properties:

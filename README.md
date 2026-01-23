@@ -7,6 +7,7 @@ A production-ready Go backend for a Hotel/Villa Booking Platform running on AWS 
 - **Phone-based OTP Authentication** with 5-minute expiry
 - **JWT Token Authentication** (24-hour validity)
 - **Role-Based Access Control**: Admin, Owner, Agent
+- **Data Privacy**: Guest details masked for unauthorized agents
 - **Property Management** with invite codes
 - **Booking System** with availability checking
 - **Offline Payment Tracking** (pending → partial → settled)
@@ -50,6 +51,8 @@ sam deploy --guided
 | `/bookings/{id}` | GET | Get booking details |
 | `/bookings/{id}` | PATCH | Update booking details (dates, guest info) |
 | `/bookings/{id}/status` | PATCH | Marking Progress (Pending/Partial/Settled) |
+| `/properties/{id}/calendar` | GET | View occupied slots (Auth Required) |
+| `/properties/{id}/availability` | GET | Check date availability (Auth Required) |
 | `/analytics/dashboard` | GET | Snapshot of today's arrivals/departures |
 | `/notifications` | GET | List in-app notifications |
 | `/notifications/count` | GET | Unread notification count |
@@ -869,92 +872,10 @@ List all invite codes for a property.
 
 ---
 
-## Payments
-
-### POST /bookings/{id}/payments
-Log an offline payment.
-
-**Headers:** `Authorization: Bearer <token>`  
-**Required Role:** Owner or Admin
-
-**Request:**
-```json
-{
-  "amount": 10000,
-  "method": "upi",
-  "reference": "UPI-TXN-12345",
-  "notes": "Advance payment",
-  "paymentDate": "2026-01-18"
-}
-```
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `amount` | int | Yes | Payment amount |
-| `method` | string | Yes | `cash`, `upi`, `bank_transfer`, `cheque`, `other` |
-| `reference` | string | No | Transaction reference ID |
-| `notes` | string | No | Payment notes |
-| `paymentDate` | string | No | Format: YYYY-MM-DD (default: today) |
-
-**Response (201):**
-```json
-{
-  "payment": {
-    "id": "770e8400-e29b-41d4-a716-446655440002",
-    "bookingId": "660e8400-e29b-41d4-a716-446655440001",
-    "amount": 10000,
-    "currency": "INR",
-    "method": "upi",
-    "reference": "UPI-TXN-12345",
-    "recordedBy": "9876543210",
-    "paymentDate": "2026-01-18T00:00:00Z",
-    "createdAt": "2026-01-18T00:00:00Z"
-  },
-  "summary": {
-    "bookingId": "660e8400-e29b-41d4-a716-446655440001",
-    "totalAmount": 20000,
-    "totalPaid": 10000,
-    "totalDue": 10000,
-    "status": "partial",
-    "paymentCount": 1,
-    "currency": "INR",
-    "lastPaymentDate": "2026-01-18T00:00:00Z"
-  },
-  "message": "Payment logged successfully"
-}
-```
-
----
-
-### GET /bookings/{id}/payments
-Get all payments for a booking.
-
-**Headers:** `Authorization: Bearer <token>`
-
-**Response (200):**
-```json
-{
-  "payments": [
-    {
-      "id": "770e8400-e29b-41d4-a716-446655440002",
-      "bookingId": "660e8400-e29b-41d4-a716-446655440001",
-      "amount": 10000,
-      "currency": "INR",
-      "method": "upi",
-      "reference": "UPI-TXN-12345",
-      "recordedBy": "9876543210",
-      "paymentDate": "2026-01-18T00:00:00Z",
-      "createdAt": "2026-01-18T00:00:00Z"
-    }
-  ],
-  "count": 1
-}
-```
-
----
+## Payment Status
 
 ### GET /bookings/{id}/payment-status
-Get payment status summary for a booking.
+Get payment status summary for a booking. Payment status is now derived from the booking's `advanceAmount` field.
 
 **Headers:** `Authorization: Bearer <token>`
 
@@ -963,20 +884,22 @@ Get payment status summary for a booking.
 {
   "bookingId": "660e8400-e29b-41d4-a716-446655440001",
   "totalAmount": 20000,
-  "totalPaid": 20000,
-  "totalDue": 0,
-  "status": "completed",
-  "paymentCount": 2,
+  "totalPaid": 10000,
+  "totalDue": 10000,
+  "status": "partial",
   "currency": "INR",
-  "lastPaymentDate": "2026-01-20T00:00:00Z"
+  "lastUpdated": "2026-01-23T14:00:00Z"
 }
 ```
 
 | Payment Status | Description |
 |----------------|-------------|
-| `pending` | No payments recorded |
-| `due` | Partial payment made |
-| `completed` | Full amount paid |
+| `pending` | No advance payment recorded |
+| `partial` | Advance is less than total amount |
+| `settled` | Full amount paid |
+
+> [!NOTE]
+> To update the amount paid, use `PATCH /bookings/{id}` and set the `advanceAmount` field.
 
 ---
 
@@ -1249,5 +1172,18 @@ All errors follow this format:
 ---
 
 # License
+
+## Data Privacy Rules
+
+The system enforces strict data privacy for guest information:
+
+| Role | Access to Guest Details |
+|------|-------------------------|
+| **Admin** | Full Access |
+| **Property Owner** | Full Access for their properties |
+| **Agent (Creator)** | Full Access for bookings they created |
+| **Agent (Other)** | **Masked (`***`)** |
+
+Guest details include `guestName`, `guestPhone`, and `guestEmail`. Unauthorized agents can still see the booking status and which agent made the booking, but cannot contact the guest.
 
 MIT License

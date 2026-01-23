@@ -13,6 +13,7 @@ import (
 	"github.com/booking-villa-backend/internal/notifications"
 	"github.com/booking-villa-backend/internal/properties"
 	"github.com/booking-villa-backend/internal/users"
+	"github.com/booking-villa-backend/internal/utils"
 )
 
 // Handler provides HTTP handlers for booking endpoints.
@@ -226,8 +227,18 @@ func (h *Handler) HandleGetBooking(ctx context.Context, request events.APIGatewa
 		return ErrorResponse(http.StatusNotFound, "Booking not found"), nil
 	}
 
-	// Note: In production, add permission check here
-	// to ensure user can view this booking
+	// Permission and privacy check
+	claims, ok := middleware.GetClaimsFromContext(ctx)
+	if !ok {
+		return ErrorResponse(http.StatusUnauthorized, "Unauthorized"), nil
+	}
+
+	if !h.canSeeBookingDetails(ctx, claims, booking) {
+		// Mask sensitive guest information for unauthorized agents
+		booking.GuestName = "***"
+		booking.GuestPhone = "***"
+		booking.GuestEmail = "***"
+	}
 
 	return APIResponse(http.StatusOK, booking), nil
 }
@@ -256,9 +267,23 @@ func (h *Handler) HandleListBookings(ctx context.Context, request events.APIGate
 		dateRange = &DateRange{Start: start, End: end}
 	}
 
+	claims, ok := middleware.GetClaimsFromContext(ctx)
+	if !ok {
+		return ErrorResponse(http.StatusUnauthorized, "Unauthorized"), nil
+	}
+
 	bookings, err := h.service.ListBookingsByProperty(ctx, propertyID, dateRange)
 	if err != nil {
 		return ErrorResponse(http.StatusInternalServerError, "Failed to list bookings"), nil
+	}
+
+	// Apply privacy masking
+	for _, b := range bookings {
+		if !h.canSeeBookingDetails(ctx, claims, b) {
+			b.GuestName = "***"
+			b.GuestPhone = "***"
+			b.GuestEmail = "***"
+		}
 	}
 
 	return APIResponse(http.StatusOK, map[string]interface{}{
@@ -555,6 +580,7 @@ type OccupiedDateRange struct {
 	CheckIn   time.Time `json:"checkIn"`
 	CheckOut  time.Time `json:"checkOut"`
 	Status    string    `json:"status"`
+	GuestName string    `json:"guestName,omitempty"`
 }
 
 // HandleGetPropertyCalendar handles the GET /properties/{id}/calendar endpoint.
@@ -583,6 +609,11 @@ func (h *Handler) HandleGetPropertyCalendar(ctx context.Context, request events.
 		}
 	}
 
+	claims, ok := middleware.GetClaimsFromContext(ctx)
+	if !ok {
+		return ErrorResponse(http.StatusUnauthorized, "Unauthorized"), nil
+	}
+
 	bookings, err := h.service.ListBookingsByProperty(ctx, propertyID, &DateRange{
 		Start: startDate,
 		End:   endDate,
@@ -595,12 +626,21 @@ func (h *Handler) HandleGetPropertyCalendar(ctx context.Context, request events.
 	for _, b := range bookings {
 		// Only include non-cancelled bookings as occupied
 		if b.Status != StatusCancelled {
-			occupied = append(occupied, OccupiedDateRange{
+			occupiedRange := OccupiedDateRange{
 				BookingID: b.ID,
 				CheckIn:   b.CheckIn,
 				CheckOut:  b.CheckOut,
 				Status:    string(b.Status),
-			})
+			}
+
+			// Add guest details if user is authorized
+			if h.canSeeBookingDetails(ctx, claims, b) {
+				occupiedRange.GuestName = b.GuestName
+			} else {
+				occupiedRange.GuestName = "***"
+			}
+
+			occupied = append(occupied, occupiedRange)
 		}
 	}
 
@@ -610,6 +650,26 @@ func (h *Handler) HandleGetPropertyCalendar(ctx context.Context, request events.
 		"endDate":    endDate.Format("2006-01-02"),
 		"occupied":   occupied,
 	}), nil
+}
+
+// canSeeBookingDetails determines if a user is authorized to see guest details for a booking.
+func (h *Handler) canSeeBookingDetails(ctx context.Context, claims *utils.TokenClaims, booking *Booking) bool {
+	if claims.Role == "admin" {
+		return true
+	}
+
+	// Check if user is owner of the property
+	authorized, err := h.userService.IsAuthorizedForProperty(ctx, claims.Phone, booking.PropertyID)
+	if err == nil && authorized {
+		return true
+	}
+
+	// Check if user is the agent who created the booking
+	if booking.BookedBy == claims.Phone {
+		return true
+	}
+
+	return false
 }
 
 // statusToNotificationType converts a booking status to a notification type.

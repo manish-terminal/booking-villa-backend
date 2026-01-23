@@ -284,12 +284,12 @@ func routeProperties(ctx context.Context, request events.APIGatewayProxyRequest,
 
 	// Check for availability endpoint
 	if strings.HasSuffix(path, "/availability") && method == "GET" {
-		return bookingHandler.HandleCheckAvailability(ctx, request)
+		return authMiddleware.Authenticate(bookingHandler.HandleCheckAvailability)(ctx, request)
 	}
 
 	// Check for calendar endpoint
 	if strings.HasSuffix(path, "/calendar") && method == "GET" {
-		return bookingHandler.HandleGetPropertyCalendar(ctx, request)
+		return authMiddleware.Authenticate(bookingHandler.HandleGetPropertyCalendar)(ctx, request)
 	}
 
 	switch {
@@ -312,16 +312,6 @@ func routeProperties(ctx context.Context, request events.APIGatewayProxyRequest,
 
 // routeBookings handles booking and payment routes.
 func routeBookings(ctx context.Context, request events.APIGatewayProxyRequest, path, method string) (events.APIGatewayProxyResponse, error) {
-	// Check for payment endpoints
-	if strings.Contains(path, "/payments") {
-		if method == "POST" {
-			return rbacMiddleware.RequireAny()(paymentHandler.HandleLogPayment)(ctx, request)
-		}
-		if method == "GET" {
-			return authMiddleware.Authenticate(paymentHandler.HandleGetPayments)(ctx, request)
-		}
-	}
-
 	// Check for payment status endpoint
 	if strings.HasSuffix(path, "/payment-status") && method == "GET" {
 		return authMiddleware.Authenticate(paymentHandler.HandleGetPaymentStatus)(ctx, request)
