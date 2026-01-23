@@ -365,9 +365,10 @@ Get simplified list of occupied date ranges for a calendar view.
   "endDate": "2026-02-28",
   "occupied": [
     {
+      "bookingId": "660e8400-e29b-41d4-a716-446655440001",
       "checkIn": "2026-02-10T00:00:00Z",
       "checkOut": "2026-02-15T00:00:00Z",
-      "status": "confirmed"
+      "status": "partial"
     }
   ]
 }

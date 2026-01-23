@@ -551,9 +551,10 @@ func (h *Handler) HandleCheckAvailability(ctx context.Context, request events.AP
 
 // OccupiedDateRange represents a range of dates that are not available.
 type OccupiedDateRange struct {
-	CheckIn  time.Time `json:"checkIn"`
-	CheckOut time.Time `json:"checkOut"`
-	Status   string    `json:"status"`
+	BookingID string    `json:"bookingId"`
+	CheckIn   time.Time `json:"checkIn"`
+	CheckOut  time.Time `json:"checkOut"`
+	Status    string    `json:"status"`
 }
 
 // HandleGetPropertyCalendar handles the GET /properties/{id}/calendar endpoint.
@@ -595,9 +596,10 @@ func (h *Handler) HandleGetPropertyCalendar(ctx context.Context, request events.
 		// Only include non-cancelled bookings as occupied
 		if b.Status != StatusCancelled {
 			occupied = append(occupied, OccupiedDateRange{
-				CheckIn:  b.CheckIn,
-				CheckOut: b.CheckOut,
-				Status:   string(b.Status),
+				BookingID: b.ID,
+				CheckIn:   b.CheckIn,
+				CheckOut:  b.CheckOut,
+				Status:    string(b.Status),
 			})
 		}
 	}
