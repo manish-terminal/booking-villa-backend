@@ -80,6 +80,27 @@ func (h *Handler) HandleAgentAnalytics(ctx context.Context, request events.APIGa
 	return APIResponse(http.StatusOK, analytics), nil
 }
 
+// HandleAgentPropertyPerformance handles GET /analytics/agent/property-performance endpoint.
+func (h *Handler) HandleAgentPropertyPerformance(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+	// Get user from context
+	claims, ok := middleware.GetClaimsFromContext(ctx)
+	if !ok {
+		return ErrorResponse(http.StatusUnauthorized, "Unauthorized"), nil
+	}
+
+	// Parse date range from query params
+	startDate, endDate := parseDateRange(request)
+
+	performance, err := h.service.GetAgentPropertyPerformance(ctx, claims.Phone, startDate, endDate)
+	if err != nil {
+		return ErrorResponse(http.StatusInternalServerError, "Failed to get property performance: "+err.Error()), nil
+	}
+
+	return APIResponse(http.StatusOK, map[string]interface{}{
+		"data": performance,
+	}), nil
+}
+
 // HandleDashboard handles GET /analytics/dashboard endpoint.
 func (h *Handler) HandleDashboard(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 	// Get user from context

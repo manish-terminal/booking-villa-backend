@@ -368,6 +368,9 @@ func routeAnalytics(ctx context.Context, request events.APIGatewayProxyRequest, 
 	case path == "/analytics/agent" && method == "GET":
 		return rbacMiddleware.RequireAny()(analyticsHandler.HandleAgentAnalytics)(ctx, request)
 
+	case path == "/analytics/agent/property-performance" && method == "GET":
+		return rbacMiddleware.RequireAny()(analyticsHandler.HandleAgentPropertyPerformance)(ctx, request)
+
 	case path == "/analytics/dashboard" && method == "GET":
 		return authMiddleware.Authenticate(analyticsHandler.HandleDashboard)(ctx, request)
 

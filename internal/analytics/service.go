@@ -74,6 +74,15 @@ type AgentAnalytics struct {
 	PeriodEnd   time.Time `json:"periodEnd"`
 }
 
+// AgentPropertyPerformance represents aggregated metrics per property for an agent.
+type AgentPropertyPerformance struct {
+	PropertyID      string  `json:"propertyId"`
+	PropertyName    string  `json:"propertyName"`
+	TotalRevenue    float64 `json:"totalRevenue"`
+	TotalCommission float64 `json:"totalCommission"`
+	BookingCount    int     `json:"bookingCount"`
+}
+
 // BookingSummary is a condensed booking for analytics.
 type BookingSummary struct {
 	BookingID       string    `json:"bookingId"`
@@ -242,6 +251,58 @@ func (s *Service) GetAgentAnalytics(ctx context.Context, agentPhone string, star
 	}
 
 	return analytics, nil
+}
+
+// GetAgentPropertyPerformance retrieves property-wise performance for an agent.
+func (s *Service) GetAgentPropertyPerformance(ctx context.Context, agentPhone string, startDate, endDate time.Time) ([]AgentPropertyPerformance, error) {
+	// 1. Get agent's profile to see managed properties
+	user, err := s.userService.GetUserByPhone(ctx, agentPhone)
+	if err != nil {
+		return nil, err
+	}
+	if user == nil {
+		return []AgentPropertyPerformance{}, nil
+	}
+
+	var results []AgentPropertyPerformance
+	dateRange := &bookings.DateRange{Start: startDate, End: endDate}
+
+	// 2. Iterate through managed properties
+	for _, propID := range user.ManagedProperties {
+		// Use ListBookingsByProperty - this gets ALL bookings for the property in date range
+		propBookings, err := s.bookingService.ListBookingsByProperty(ctx, propID, dateRange)
+		if err != nil {
+			continue
+		}
+
+		perf := AgentPropertyPerformance{
+			PropertyID: propID,
+		}
+
+		// Improve: Fetch property name
+		if prop, err := s.propertyService.GetProperty(ctx, propID); err == nil && prop != nil {
+			perf.PropertyName = prop.Name
+		}
+
+		hasBookings := false
+		for _, booking := range propBookings {
+			// Only include bookings made by this agent
+			if booking.BookedBy != agentPhone {
+				continue
+			}
+
+			hasBookings = true
+			perf.BookingCount++
+			perf.TotalRevenue += booking.TotalAmount
+			perf.TotalCommission += booking.AgentCommission
+		}
+
+		if hasBookings {
+			results = append(results, perf)
+		}
+	}
+
+	return results, nil
 }
 
 // GetDashboardStats returns quick stats for dashboard.
