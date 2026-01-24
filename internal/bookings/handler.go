@@ -3,6 +3,7 @@ package bookings
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -334,6 +335,56 @@ func (h *Handler) HandleListBookings(ctx context.Context, request events.APIGate
 	return APIResponse(http.StatusOK, map[string]interface{}{
 		"bookings": visibleBookings,
 		"count":    len(visibleBookings),
+	}), nil
+}
+
+// HandleListAvailableProperties handles GET /properties/available endpoint.
+func (h *Handler) HandleListAvailableProperties(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+	// Parse dates
+	checkInStr := request.QueryStringParameters["checkIn"]
+	checkOutStr := request.QueryStringParameters["checkOut"]
+
+	if checkInStr == "" || checkOutStr == "" {
+		return ErrorResponse(http.StatusBadRequest, "checkIn and checkOut query parameters are required"), nil
+	}
+
+	checkIn, err := time.Parse("2006-01-02", checkInStr)
+	if err != nil {
+		return ErrorResponse(http.StatusBadRequest, "Invalid checkIn date format (expected YYYY-MM-DD)"), nil
+	}
+
+	checkOut, err := time.Parse("2006-01-02", checkOutStr)
+	if err != nil {
+		return ErrorResponse(http.StatusBadRequest, "Invalid checkOut date format (expected YYYY-MM-DD)"), nil
+	}
+
+	if checkIn.After(checkOut) {
+		return ErrorResponse(http.StatusBadRequest, "checkIn date must be before checkOut date"), nil
+	}
+
+	// 1. Get all properties
+	allProperties, err := h.propertyService.ListAllProperties(ctx)
+	if err != nil {
+		return ErrorResponse(http.StatusInternalServerError, "Failed to list properties: "+err.Error()), nil
+	}
+
+	// 2. Filter by availability
+	availableProperties := make([]*properties.Property, 0)
+	for _, prop := range allProperties {
+		isAvailable, err := h.service.CheckAvailability(ctx, prop.ID, checkIn, checkOut)
+		if err != nil {
+			// Log error but continue? For now, if we can't check, assume unavailable or skip
+			fmt.Printf("Error checking availability for property %s: %v\n", prop.ID, err)
+			continue
+		}
+		if isAvailable {
+			availableProperties = append(availableProperties, prop)
+		}
+	}
+
+	return APIResponse(http.StatusOK, map[string]interface{}{
+		"properties": availableProperties,
+		"count":      len(availableProperties),
 	}), nil
 }
 

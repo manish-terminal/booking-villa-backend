@@ -198,6 +198,12 @@ Resources:
             RestApiId: !Ref BookingApi
             Path: /properties/{id}/calendar
             Method: GET
+        ListAvailableProperties:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BookingApi
+            Path: /properties/available
+            Method: GET
 
         # Payment endpoints
         GetPaymentStatus:

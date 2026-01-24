@@ -155,6 +155,52 @@ type QueryParams struct {
 	ScanIndexForward *bool
 }
 
+// Scan executes a scan on the table.
+func (c *Client) Scan(ctx context.Context, params ScanParams) ([]map[string]types.AttributeValue, error) {
+	exprValues := make(map[string]types.AttributeValue)
+	for k, v := range params.ExpressionValues {
+		av, err := attributevalue.Marshal(v)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal expression value %s: %w", k, err)
+		}
+		exprValues[k] = av
+	}
+
+	input := &dynamodb.ScanInput{
+		TableName: aws.String(c.tableName),
+	}
+
+	if params.FilterExpression != "" {
+		input.FilterExpression = aws.String(params.FilterExpression)
+		if len(exprValues) > 0 {
+			input.ExpressionAttributeValues = exprValues
+		}
+	}
+
+	if params.IndexName != "" {
+		input.IndexName = aws.String(params.IndexName)
+	}
+
+	if params.Limit > 0 {
+		input.Limit = aws.Int32(params.Limit)
+	}
+
+	result, err := c.db.Scan(ctx, input)
+	if err != nil {
+		return nil, fmt.Errorf("failed to scan: %w", err)
+	}
+
+	return result.Items, nil
+}
+
+// ScanParams holds parameters for a DynamoDB scan.
+type ScanParams struct {
+	FilterExpression string
+	ExpressionValues map[string]interface{}
+	IndexName        string
+	Limit            int32
+}
+
 // UpdateItem updates an item in DynamoDB.
 func (c *Client) UpdateItem(ctx context.Context, pk, sk string, params UpdateParams) error {
 	exprValues := make(map[string]types.AttributeValue)

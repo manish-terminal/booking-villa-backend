@@ -312,6 +312,9 @@ func routeProperties(ctx context.Context, request events.APIGatewayProxyRequest,
 	}
 
 	switch {
+	case path == "/properties/available" && method == "GET":
+		return authMiddleware.Authenticate(bookingHandler.HandleListAvailableProperties)(ctx, request)
+
 	case path == "/properties" && method == "POST":
 		return rbacMiddleware.RequireAdminOrOwner()(propertyHandler.HandleCreateProperty)(ctx, request)
 

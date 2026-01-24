@@ -159,6 +159,36 @@ func (s *Service) ListPropertiesByOwner(ctx context.Context, ownerID string) ([]
 	return properties, nil
 }
 
+// ListAllProperties retrieves all active properties in the system.
+func (s *Service) ListAllProperties(ctx context.Context) ([]*Property, error) {
+	// Scan for EntityType = PROPERTY
+	// Note: In production with high volume, this should use a GSI or specific partition
+	params := db.ScanParams{
+		FilterExpression: "EntityType = :entityType",
+		ExpressionValues: map[string]interface{}{
+			":entityType": "PROPERTY",
+		},
+	}
+
+	items, err := s.db.Scan(ctx, params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to scan properties: %w", err)
+	}
+
+	properties := make([]*Property, 0, len(items))
+	for _, item := range items {
+		var property Property
+		if err := attributevalue.UnmarshalMap(item, &property); err != nil {
+			continue
+		}
+		if property.IsActive {
+			properties = append(properties, &property)
+		}
+	}
+
+	return properties, nil
+}
+
 // GenerateInviteCode creates a new invite code for a property.
 func (s *Service) GenerateInviteCode(ctx context.Context, propertyID, createdBy string, expiresAt time.Time, maxUses int) (*InviteCode, error) {
 	// Get property to validate it exists and get name
