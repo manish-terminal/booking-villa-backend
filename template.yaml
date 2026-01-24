@@ -220,6 +220,12 @@ Resources:
             RestApiId: !Ref BookingApi
             Path: /analytics/agent
             Method: GET
+        AgentPropertyPerformance:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BookingApi
+            Path: /analytics/agent/property-performance
+            Method: GET
         Dashboard:
           Type: Api
           Properties:
