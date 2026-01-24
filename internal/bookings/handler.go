@@ -227,14 +227,31 @@ func (h *Handler) HandleGetBooking(ctx context.Context, request events.APIGatewa
 		return ErrorResponse(http.StatusNotFound, "Booking not found"), nil
 	}
 
-	// Permission and privacy check
+	// Permission check
 	claims, ok := middleware.GetClaimsFromContext(ctx)
 	if !ok {
 		return ErrorResponse(http.StatusUnauthorized, "Unauthorized"), nil
 	}
 
+	// Agents can only see bookings they created
+	// Owners (and Admins) can see all bookings for the property
+	isOwnerOrAdmin := false
+	if claims.Role == "admin" {
+		isOwnerOrAdmin = true
+	} else {
+		// Check if user is owner
+		property, err := h.propertyService.GetProperty(ctx, booking.PropertyID)
+		if err == nil && property != nil && property.OwnerID == claims.Phone {
+			isOwnerOrAdmin = true
+		}
+	}
+
+	if !isOwnerOrAdmin && booking.BookedBy != claims.Phone {
+		return ErrorResponse(http.StatusForbidden, "You can only view bookings you created"), nil
+	}
+
 	if !h.canSeeBookingDetails(ctx, claims, booking) {
-		// Mask sensitive guest information for unauthorized agents
+		// Mask sensitive guest information
 		booking.GuestName = "***"
 		booking.GuestPhone = "***"
 		booking.GuestEmail = "***"
@@ -272,23 +289,51 @@ func (h *Handler) HandleListBookings(ctx context.Context, request events.APIGate
 		return ErrorResponse(http.StatusUnauthorized, "Unauthorized"), nil
 	}
 
-	bookings, err := h.service.ListBookingsByProperty(ctx, propertyID, dateRange)
+	// Fetch property to check ownership
+	property, err := h.propertyService.GetProperty(ctx, propertyID)
+	if err != nil {
+		return ErrorResponse(http.StatusInternalServerError, "Failed to get property information"), nil
+	}
+	if property == nil {
+		return ErrorResponse(http.StatusNotFound, "Property not found"), nil
+	}
+
+	// Check if user is Admin or Owner
+	isOwnerOrAdmin := false
+	if claims.Role == "admin" {
+		isOwnerOrAdmin = true
+	} else if property.OwnerID == claims.Phone {
+		isOwnerOrAdmin = true
+	}
+
+	bookingsList, err := h.service.ListBookingsByProperty(ctx, propertyID, dateRange)
 	if err != nil {
 		return ErrorResponse(http.StatusInternalServerError, "Failed to list bookings"), nil
 	}
 
-	// Apply privacy masking
-	for _, b := range bookings {
+	// Filter and mask bookings
+	visibleBookings := make([]*Booking, 0)
+	for _, b := range bookingsList {
+		// Visibility Check:
+		// Agents: Only see their own bookings
+		// Owners/Admins: See all
+		if !isOwnerOrAdmin && b.BookedBy != claims.Phone {
+			continue
+		}
+
+		// Privacy Masking (Guest Details):
+		// Done via canSeeBookingDetails (Admin/Creator only)
 		if !h.canSeeBookingDetails(ctx, claims, b) {
 			b.GuestName = "***"
 			b.GuestPhone = "***"
 			b.GuestEmail = "***"
 		}
+		visibleBookings = append(visibleBookings, b)
 	}
 
 	return APIResponse(http.StatusOK, map[string]interface{}{
-		"bookings": bookings,
-		"count":    len(bookings),
+		"bookings": visibleBookings,
+		"count":    len(visibleBookings),
 	}), nil
 }
 
@@ -658,13 +703,8 @@ func (h *Handler) canSeeBookingDetails(ctx context.Context, claims *utils.TokenC
 		return true
 	}
 
-	// Check if user is owner of the property
-	authorized, err := h.userService.IsAuthorizedForProperty(ctx, claims.Phone, booking.PropertyID)
-	if err == nil && authorized {
-		return true
-	}
-
-	// Check if user is the agent who created the booking
+	// Only the creator of the booking can see guest details.
+	// This hides details from Owners if they didn't create the booking.
 	if booking.BookedBy == claims.Phone {
 		return true
 	}
