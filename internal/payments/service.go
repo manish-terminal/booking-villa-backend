@@ -44,13 +44,14 @@ func (m PaymentMethod) IsValid() bool {
 
 // PaymentSummary provides an overview of payments for a booking.
 type PaymentSummary struct {
-	BookingID   string        `json:"bookingId"`
-	TotalAmount float64       `json:"totalAmount"`
-	TotalPaid   float64       `json:"totalPaid"`
-	TotalDue    float64       `json:"totalDue"`
-	Status      PaymentStatus `json:"status"`
-	Currency    string        `json:"currency"`
-	LastUpdated time.Time     `json:"lastUpdated"`
+	BookingID       string        `json:"bookingId"`
+	TotalAmount     float64       `json:"totalAmount"`
+	TotalPaid       float64       `json:"totalPaid"`
+	TotalDue        float64       `json:"totalDue"`
+	AgentCommission float64       `json:"agentCommission,omitempty"`
+	Status          PaymentStatus `json:"status"`
+	Currency        string        `json:"currency"`
+	LastUpdated     time.Time     `json:"lastUpdated"`
 }
 
 // Service provides payment-related operations.
@@ -95,13 +96,14 @@ func (s *Service) CalculatePaymentStatus(ctx context.Context, bookingID string) 
 	}
 
 	return &PaymentSummary{
-		BookingID:   bookingID,
-		TotalAmount: booking.TotalAmount,
-		TotalPaid:   totalPaid,
-		TotalDue:    totalDue,
-		Status:      status,
-		Currency:    booking.Currency,
-		LastUpdated: booking.UpdatedAt,
+		BookingID:       bookingID,
+		TotalAmount:     booking.TotalAmount,
+		TotalPaid:       totalPaid,
+		TotalDue:        totalDue,
+		AgentCommission: booking.AgentCommission,
+		Status:          status,
+		Currency:        booking.Currency,
+		LastUpdated:     booking.UpdatedAt,
 	}, nil
 }
 

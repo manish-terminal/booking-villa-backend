@@ -207,14 +207,10 @@ func (s *Service) GetAgentAnalytics(ctx context.Context, agentPhone string, star
 		}
 
 		for _, booking := range propBookings {
-			// Only include bookings made by this agent OR bookings for properties they manage
-			// For specific agent analytics, we usually want totals across properties they handle
-			// If we want specifically "bookings MADE by them", we check BookedBy.
-			// The user requirement usually implies "bookings for properties I manage".
-			// However, since they are an agent, we filter by their BookedBy if needed, or just property access.
-			// Let's stick to "bookings made by them" for now, or all bookings in properties they manage?
-			// Usually agents only see what they book or everything in their linked villas.
-			// Let's include all bookings for their managed properties for better visibility.
+			// Only include bookings made by this agent
+			if booking.BookedBy != agentPhone {
+				continue
+			}
 
 			analytics.TotalBookings++
 			analytics.TotalBookingValue += booking.TotalAmount
