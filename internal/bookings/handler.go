@@ -163,6 +163,15 @@ func (h *Handler) HandleCreateBooking(ctx context.Context, request events.APIGat
 		numGuests = 1
 	}
 
+	// Fetch user details to get name
+	user, err := h.userService.GetUserByPhone(ctx, claims.Phone)
+	bookedByName := ""
+	if err != nil {
+		log.Printf("Warning: Failed to fetch user details for booking: %v", err)
+	} else if user != nil {
+		bookedByName = user.Name
+	}
+
 	// Create booking
 	booking := &Booking{
 		PropertyID:      req.PropertyID,
@@ -177,6 +186,7 @@ func (h *Handler) HandleCreateBooking(ctx context.Context, request events.APIGat
 		TotalAmount:     req.TotalAmount, // Support dynamic total price
 		Currency:        property.Currency,
 		BookedBy:        claims.Phone,
+		BookedByName:    bookedByName,
 		InviteCode:      req.InviteCode,
 		Notes:           req.Notes,
 		SpecialRequests: req.SpecialRequests,
