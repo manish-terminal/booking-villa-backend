@@ -622,6 +622,22 @@ Update booking status.
 
 ---
 
+### POST /bookings/{id}/settle
+Mark a booking as settled (fully paid). This sets the advance amount equal to the total amount.
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Response (200):**
+```json
+{
+  "message": "Booking settled successfully",
+  "id": "660e8400-e29b-41d4-a716-446655440001",
+  "status": "settled"
+}
+```
+
+---
+
 ### GET /analytics/dashboard
 Get quick dashboard stats for today.
 
