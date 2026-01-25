@@ -3,6 +3,7 @@ package analytics
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -140,4 +141,31 @@ func parseDateRange(request events.APIGatewayProxyRequest) (time.Time, time.Time
 	}
 
 	return startDate, endDate
+}
+
+// HandleExportData handles GET /analytics/export endpoint.
+func (h *Handler) HandleExportData(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+	// Permission check is handled by middleware
+	claims, ok := middleware.GetClaimsFromContext(ctx)
+	if !ok || claims.Role != "admin" {
+		return ErrorResponse(http.StatusForbidden, "Admins only"), nil
+	}
+
+	csvData, err := h.service.GenerateMasterCSV(ctx)
+	if err != nil {
+		return ErrorResponse(http.StatusInternalServerError, "Failed to generate CSV: "+err.Error()), nil
+	}
+
+	filename := fmt.Sprintf("villa_data_export_%s.csv", time.Now().Format("2006-01-02"))
+
+	return events.APIGatewayProxyResponse{
+		StatusCode: http.StatusOK,
+		Headers: map[string]string{
+			"Content-Type":                 "text/csv",
+			"Content-Disposition":          fmt.Sprintf("attachment; filename=\"%s\"", filename),
+			"Access-Control-Allow-Origin":  "*",
+			"Access-Control-Allow-Headers": "Content-Type,Authorization",
+		},
+		Body: string(csvData),
+	}, nil
 }

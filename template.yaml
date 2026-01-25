@@ -214,6 +214,12 @@ Resources:
             Method: GET
 
         # Analytics endpoints
+        ExportData:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BookingApi
+            Path: /analytics/export
+            Method: GET
         OwnerAnalytics:
           Type: Api
           Properties:

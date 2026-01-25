@@ -368,6 +368,9 @@ func routeAnalytics(ctx context.Context, request events.APIGatewayProxyRequest, 
 	case path == "/analytics/owner" && method == "GET":
 		return rbacMiddleware.RequireAdminOrOwner()(analyticsHandler.HandleOwnerAnalytics)(ctx, request)
 
+	case path == "/analytics/export" && method == "GET":
+		return rbacMiddleware.RequireAdmin()(analyticsHandler.HandleExportData)(ctx, request)
+
 	case path == "/analytics/agent" && method == "GET":
 		return rbacMiddleware.RequireAny()(analyticsHandler.HandleAgentAnalytics)(ctx, request)
 
