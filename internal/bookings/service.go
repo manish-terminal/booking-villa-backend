@@ -52,9 +52,11 @@ type Booking struct {
 	NumGuests  int    `dynamodbav:"numGuests" json:"numGuests"`
 
 	// Booking details
-	CheckIn   time.Time `dynamodbav:"checkIn" json:"checkIn"`
-	CheckOut  time.Time `dynamodbav:"checkOut" json:"checkOut"`
-	NumNights int       `dynamodbav:"numNights" json:"numNights"`
+	CheckIn      time.Time `dynamodbav:"checkIn" json:"checkIn"`
+	CheckInTime  string    `dynamodbav:"checkInTime,omitempty" json:"checkInTime,omitempty"`
+	CheckOut     time.Time `dynamodbav:"checkOut" json:"checkOut"`
+	CheckOutTime string    `dynamodbav:"checkOutTime,omitempty" json:"checkOutTime,omitempty"`
+	NumNights    int       `dynamodbav:"numNights" json:"numNights"`
 
 	// Pricing
 	PricePerNight   float64 `dynamodbav:"pricePerNight" json:"pricePerNight"`
@@ -233,7 +235,7 @@ func (s *Service) ListBookingsByAgent(ctx context.Context, agentPhone string) ([
 }
 
 // CheckAvailability checks if a property is available for the given dates.
-func (s *Service) CheckAvailability(ctx context.Context, propertyID string, checkIn, checkOut time.Time) (bool, error) {
+func (s *Service) CheckAvailability(ctx context.Context, propertyID string, checkIn, checkOut time.Time, checkInTime, checkOutTime string) (bool, error) {
 	// Get all bookings for the property in the date range
 	dateRange := &DateRange{
 		Start: checkIn.AddDate(0, 0, -1), // Include day before to catch overlaps
@@ -245,6 +247,25 @@ func (s *Service) CheckAvailability(ctx context.Context, propertyID string, chec
 		return false, err
 	}
 
+	// Helper to parse time string "15:04" to minutes from midnight
+	timeToMinutes := func(tStr string, defaultMinutes int) int {
+		if tStr == "" {
+			return defaultMinutes
+		}
+		t, err := time.Parse("15:04", tStr)
+		if err != nil {
+			return defaultMinutes
+		}
+		return t.Hour()*60 + t.Minute()
+	}
+
+	// Defaults
+	defaultCheckInMinutes := 14 * 60  // 14:00
+	defaultCheckOutMinutes := 11 * 60 // 11:00
+
+	newCheckInMins := timeToMinutes(checkInTime, defaultCheckInMinutes)
+	newCheckOutMins := timeToMinutes(checkOutTime, defaultCheckOutMinutes)
+
 	// Check for overlapping bookings
 	for _, booking := range bookings {
 		// Skip cancelled bookings
@@ -252,9 +273,34 @@ func (s *Service) CheckAvailability(ctx context.Context, propertyID string, chec
 			continue
 		}
 
-		// Check if dates overlap
-		// Overlap if: checkIn < existing.CheckOut AND checkOut > existing.CheckIn
+		// Dates overlap check
+		// Standard date overlap:
+		// (StartA < EndB) and (EndA > StartB)
 		if checkIn.Before(booking.CheckOut) && checkOut.After(booking.CheckIn) {
+			// This is a date overlap. Now check if it's just a "touch" (same day turnover)
+			// Case 1: New CheckIn matches Existing CheckOut
+			if checkIn.Equal(booking.CheckOut) {
+				// We are checking in on the day they check out.
+				// Check times. New CheckIn must be >= Existing CheckOut
+				existingCheckOutMins := timeToMinutes(booking.CheckOutTime, defaultCheckOutMinutes)
+				if newCheckInMins < existingCheckOutMins {
+					return false, nil // Conflict: Checking in before they leave
+				}
+				continue // No conflict on this edge
+			}
+
+			// Case 2: New CheckOut matches Existing CheckIn
+			if checkOut.Equal(booking.CheckIn) {
+				// We are checking out on the day they check in.
+				// Check times. New CheckOut must be <= Existing CheckIn
+				existingCheckInMins := timeToMinutes(booking.CheckInTime, defaultCheckInMinutes)
+				if newCheckOutMins > existingCheckInMins {
+					return false, nil // Conflict: Leaving after they arrive
+				}
+				continue // No conflict on this edge
+			}
+
+			// If it's not a border case (touching dates), it's a full day overlap
 			return false, nil
 		}
 	}
@@ -270,4 +316,21 @@ func (s *Service) CancelBooking(ctx context.Context, id string) error {
 // ConfirmBooking marks a booking as settled.
 func (s *Service) ConfirmBooking(ctx context.Context, id string) error {
 	return s.UpdateBookingStatus(ctx, id, StatusSettled)
+}
+
+// SettleBooking sets the advance amount to the total amount and marks the booking as settled.
+func (s *Service) SettleBooking(ctx context.Context, id string) error {
+	booking, err := s.GetBooking(ctx, id)
+	if err != nil {
+		return err
+	}
+	if booking == nil {
+		return fmt.Errorf("booking not found")
+	}
+
+	booking.AdvanceAmount = booking.TotalAmount
+	booking.Status = StatusSettled
+	booking.UpdatedAt = time.Now()
+
+	return s.db.PutItem(ctx, booking)
 }

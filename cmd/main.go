@@ -344,6 +344,11 @@ func routeBookings(ctx context.Context, request events.APIGatewayProxyRequest, p
 		return rbacMiddleware.RequireAny()(bookingHandler.HandleUpdateBookingStatus)(ctx, request)
 	}
 
+	// Check for booking settle endpoint
+	if strings.HasSuffix(path, "/settle") && method == "POST" {
+		return rbacMiddleware.RequireAny()(bookingHandler.HandleSettleBooking)(ctx, request)
+	}
+
 	switch {
 	case path == "/bookings" && method == "POST":
 		return rbacMiddleware.RequireAny()(bookingHandler.HandleCreateBooking)(ctx, request)

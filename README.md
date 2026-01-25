@@ -397,7 +397,9 @@ Create a booking.
   "guestEmail": "jane@example.com",
   "numGuests": 4,
   "checkIn": "2026-02-01",
+  "checkInTime": "14:00",
   "checkOut": "2026-02-05",
+  "checkOutTime": "11:00",
   "notes": "Early check-in requested",
   "specialRequests": "Vegetarian meals",
   "inviteCode": "a1b2c3d4",
@@ -417,7 +419,9 @@ Create a booking.
 | `guestEmail` | string | No | Guest's email |
 | `numGuests` | int | Yes | Number of guests |
 | `checkIn` | string | Yes | Format: YYYY-MM-DD |
+| `checkInTime` | string | No | Format: HH:MM (24h) |
 | `checkOut` | string | Yes | Format: YYYY-MM-DD |
+| `checkOutTime` | string | No | Format: HH:MM (24h) |
 | `notes` | string | No | Internal notes |
 | `specialRequests` | string | No | Guest requests |
 | `inviteCode` | string | No | Agent's invite code |
@@ -438,7 +442,9 @@ Create a booking.
   "guestEmail": "jane@example.com",
   "numGuests": 4,
   "checkIn": "2026-02-01T00:00:00Z",
+  "checkInTime": "14:00",
   "checkOut": "2026-02-05T00:00:00Z",
+  "checkOutTime": "11:00",
   "numNights": 4,
   "pricePerNight": 5000,
   "totalAmount": 20000,
@@ -515,7 +521,9 @@ Get booking by ID.
   "guestEmail": "jane@example.com",
   "numGuests": 4,
   "checkIn": "2026-02-01T00:00:00Z",
+  "checkInTime": "14:00",
   "checkOut": "2026-02-05T00:00:00Z",
+  "checkOutTime": "11:00",
   "numNights": 4,
   "pricePerNight": 5000,
   "totalAmount": 20000,
@@ -540,7 +548,9 @@ Update booking details. All fields are optional.
 {
   "guestName": "Jane Smith Updated",
   "checkIn": "2026-02-02",
+  "checkInTime": "15:00",
   "checkOut": "2026-02-06",
+  "checkOutTime": "12:00",
   "totalAmount": 22000,
   "notes": "Late check-out requested"
 }
@@ -553,7 +563,9 @@ Update booking details. All fields are optional.
 | `guestEmail` | string | Updated guest email |
 | `numGuests` | int | Updated number of guests |
 | `checkIn` | string | New check-in (YYYY-MM-DD) |
+| `checkInTime` | string | New check-in time (HH:MM) |
 | `checkOut` | string | New check-out (YYYY-MM-DD) |
+| `checkOutTime` | string | New check-out time (HH:MM) |
 | `pricePerNight`| number | Updated price per night |
 | `totalAmount` | number | Updated total amount |
 | `agentCommission`| number | Updated agent commission |

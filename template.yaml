@@ -180,6 +180,12 @@ Resources:
             RestApiId: !Ref BookingApi
             Path: /bookings/{id}/status
             Method: PATCH
+        SettleBooking:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BookingApi
+            Path: /bookings/{id}/settle
+            Method: POST
         EditBooking:
           Type: Api
           Properties:

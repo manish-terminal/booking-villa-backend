@@ -61,8 +61,10 @@ type CreateBookingRequest struct {
 	GuestPhone      string  `json:"guestPhone"`
 	GuestEmail      string  `json:"guestEmail,omitempty"`
 	NumGuests       int     `json:"numGuests"`
-	CheckIn         string  `json:"checkIn"`  // Format: 2006-01-02
-	CheckOut        string  `json:"checkOut"` // Format: 2006-01-02
+	CheckIn         string  `json:"checkIn"`                // Format: 2006-01-02
+	CheckInTime     string  `json:"checkInTime,omitempty"`  // Format: 15:04
+	CheckOut        string  `json:"checkOut"`               // Format: 2006-01-02
+	CheckOutTime    string  `json:"checkOutTime,omitempty"` // Format: 15:04
 	Notes           string  `json:"notes,omitempty"`
 	SpecialRequests string  `json:"specialRequests,omitempty"`
 	InviteCode      string  `json:"inviteCode,omitempty"`
@@ -123,7 +125,7 @@ func (h *Handler) HandleCreateBooking(ctx context.Context, request events.APIGat
 	}
 
 	// Check availability
-	available, err := h.service.CheckAvailability(ctx, req.PropertyID, checkIn, checkOut)
+	available, err := h.service.CheckAvailability(ctx, req.PropertyID, checkIn, checkOut, req.CheckInTime, req.CheckOutTime)
 	if err != nil {
 		return ErrorResponse(http.StatusInternalServerError, "Failed to check availability"), nil
 	}
@@ -177,7 +179,9 @@ func (h *Handler) HandleCreateBooking(ctx context.Context, request events.APIGat
 		GuestEmail:      req.GuestEmail,
 		NumGuests:       numGuests,
 		CheckIn:         checkIn,
+		CheckInTime:     req.CheckInTime,
 		CheckOut:        checkOut,
+		CheckOutTime:    req.CheckOutTime,
 		PricePerNight:   pricePerNight,
 		TotalAmount:     req.TotalAmount, // Support dynamic total price
 		Currency:        property.Currency,
@@ -377,7 +381,8 @@ func (h *Handler) HandleListAvailableProperties(ctx context.Context, request eve
 	// 2. Filter by availability
 	availableProperties := make([]*properties.Property, 0)
 	for _, prop := range allProperties {
-		isAvailable, err := h.service.CheckAvailability(ctx, prop.ID, checkIn, checkOut)
+		// Pass empty strings for times to use defaults (14:00/11:00) for general availability
+		isAvailable, err := h.service.CheckAvailability(ctx, prop.ID, checkIn, checkOut, "", "")
 		if err != nil {
 			// Log error but continue? For now, if we can't check, assume unavailable or skip
 			fmt.Printf("Error checking availability for property %s: %v\n", prop.ID, err)
@@ -406,7 +411,9 @@ type UpdateBookingRequest struct {
 	GuestEmail      *string  `json:"guestEmail,omitempty"`
 	NumGuests       *int     `json:"numGuests,omitempty"`
 	CheckIn         *string  `json:"checkIn,omitempty"`
+	CheckInTime     *string  `json:"checkInTime,omitempty"`
 	CheckOut        *string  `json:"checkOut,omitempty"`
+	CheckOutTime    *string  `json:"checkOutTime,omitempty"`
 	PricePerNight   *float64 `json:"pricePerNight,omitempty"`
 	TotalAmount     *float64 `json:"totalAmount,omitempty"`
 	AgentCommission *float64 `json:"agentCommission,omitempty"`
@@ -488,6 +495,15 @@ func (h *Handler) HandleUpdateBooking(ctx context.Context, request events.APIGat
 	if req.SpecialRequests != nil {
 		booking.SpecialRequests = *req.SpecialRequests
 	}
+	if req.CheckInTime != nil {
+		booking.CheckInTime = *req.CheckInTime
+	}
+	if req.CheckOutTime != nil {
+		booking.CheckOutTime = *req.CheckOutTime
+	}
+	// Detect if times changed to force availability check even if dates didn't
+	timesChanged := (req.CheckInTime != nil && *req.CheckInTime != booking.CheckInTime) ||
+		(req.CheckOutTime != nil && *req.CheckOutTime != booking.CheckOutTime)
 
 	// Handle date changes
 	if req.CheckIn != nil || req.CheckOut != nil {
@@ -524,17 +540,27 @@ func (h *Handler) HandleUpdateBooking(ctx context.Context, request events.APIGat
 		}
 	}
 
-	// 4. Verify availability if dates changed
-	if datesChanged {
-		available, err := h.service.CheckAvailability(ctx, booking.PropertyID, booking.CheckIn, booking.CheckOut)
+	// 4. Verify availability if dates or times changed
+	if datesChanged || timesChanged {
+		available, err := h.service.CheckAvailability(ctx, booking.PropertyID, booking.CheckIn, booking.CheckOut, booking.CheckInTime, booking.CheckOutTime)
 		if err != nil {
 			return ErrorResponse(http.StatusInternalServerError, "Failed to check availability"), nil
 		}
 		if !available {
-			// We need to double check if the "overlap" is just the current booking itself
-			// The current CheckAvailability logic might flag it.
-			// For a simpler MVP, we let it through but in prod we'd exclude current booking ID from check.
-			// Let's rely on the user to handle this or refine if they ask.
+			// Warn or error here?
+		}
+	}
+
+	// Auto-update status based on payment
+	if booking.Status != StatusCancelled {
+		if booking.AdvanceAmount >= booking.TotalAmount && booking.TotalAmount > 0 {
+			booking.Status = StatusSettled
+		} else if booking.AdvanceAmount > 0 {
+			booking.Status = StatusPartial
+		} else {
+			// If previously settled but amount changed, revert to pending/partial?
+			// Only if specifically needed, but to be safe and consistent:
+			booking.Status = StatusPending
 		}
 	}
 
@@ -639,6 +665,69 @@ func (h *Handler) HandleUpdateBookingStatus(ctx context.Context, request events.
 	}), nil
 }
 
+// HandleSettleBooking handles the POST /bookings/{id}/settle endpoint.
+func (h *Handler) HandleSettleBooking(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+	id := request.PathParameters["id"]
+	if id == "" {
+		return ErrorResponse(http.StatusBadRequest, "Booking ID is required"), nil
+	}
+
+	// Get booking to verify it exists and check permissions
+	booking, err := h.service.GetBooking(ctx, id)
+	if err != nil {
+		return ErrorResponse(http.StatusInternalServerError, "Failed to get booking"), nil
+	}
+	if booking == nil {
+		return ErrorResponse(http.StatusNotFound, "Booking not found"), nil
+	}
+
+	claims, ok := middleware.GetClaimsFromContext(ctx)
+	if !ok {
+		return ErrorResponse(http.StatusUnauthorized, "Unauthorized"), nil
+	}
+
+	// Permission check
+	if claims.Role != "admin" {
+		authorized, err := h.userService.IsAuthorizedForProperty(ctx, claims.Phone, booking.PropertyID)
+		if err != nil {
+			return ErrorResponse(http.StatusInternalServerError, "Authorization check failed"), nil
+		}
+		if !authorized && booking.BookedBy != claims.Phone {
+			return ErrorResponse(http.StatusForbidden, "Insufficient permissions to settle this booking"), nil
+		}
+	}
+
+	if err := h.service.SettleBooking(ctx, id); err != nil {
+		return ErrorResponse(http.StatusInternalServerError, "Failed to settle booking"), nil
+	}
+
+	// Send notification
+	if h.notificationService != nil {
+		go func() {
+			ctx := context.Background()
+			// Notify owner
+			property, _ := h.propertyService.GetProperty(ctx, booking.PropertyID)
+			if property != nil && claims.Phone != property.OwnerID {
+				_ = h.notificationService.CreateBookingNotification(
+					ctx,
+					property.OwnerID,
+					notifications.TypeBookingSettled,
+					booking.ID,
+					booking.PropertyID,
+					booking.PropertyName,
+					booking.GuestName,
+				)
+			}
+		}()
+	}
+
+	return APIResponse(http.StatusOK, map[string]string{
+		"message": "Booking settled successfully",
+		"id":      id,
+		"status":  string(StatusSettled),
+	}), nil
+}
+
 // HandleCheckAvailability handles the GET /properties/{id}/availability endpoint.
 func (h *Handler) HandleCheckAvailability(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 	propertyID := request.PathParameters["id"]
@@ -663,7 +752,7 @@ func (h *Handler) HandleCheckAvailability(ctx context.Context, request events.AP
 		return ErrorResponse(http.StatusBadRequest, "Invalid checkOut date format. Use YYYY-MM-DD"), nil
 	}
 
-	available, err := h.service.CheckAvailability(ctx, propertyID, checkIn, checkOut)
+	available, err := h.service.CheckAvailability(ctx, propertyID, checkIn, checkOut, "", "")
 	if err != nil {
 		return ErrorResponse(http.StatusInternalServerError, "Failed to check availability"), nil
 	}
