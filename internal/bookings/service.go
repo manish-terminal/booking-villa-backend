@@ -237,8 +237,9 @@ func (s *Service) ListBookingsByAgent(ctx context.Context, agentPhone string) ([
 // CheckAvailability checks if a property is available for the given dates.
 func (s *Service) CheckAvailability(ctx context.Context, propertyID string, checkIn, checkOut time.Time, checkInTime, checkOutTime string) (bool, error) {
 	// Get all bookings for the property in the date range
+	// Look back 90 days to ensure we catch long bookings that started earlier but overlap with this range
 	dateRange := &DateRange{
-		Start: checkIn.AddDate(0, 0, -1), // Include day before to catch overlaps
+		Start: checkIn.AddDate(0, 0, -90),
 		End:   checkOut.AddDate(0, 0, 1), // Include day after to catch overlaps
 	}
 
@@ -274,9 +275,10 @@ func (s *Service) CheckAvailability(ctx context.Context, propertyID string, chec
 		}
 
 		// Dates overlap check
-		// Standard date overlap:
-		// (StartA < EndB) and (EndA > StartB)
-		if checkIn.Before(booking.CheckOut) && checkOut.After(booking.CheckIn) {
+		// Standard date overlap (inclusive of boundaries for time check):
+		// (StartA <= EndB) and (EndA >= StartB)
+		// Using !After and !Before handles equality correctly
+		if !checkIn.After(booking.CheckOut) && !checkOut.Before(booking.CheckIn) {
 			// This is a date overlap. Now check if it's just a "touch" (same day turnover)
 			// Case 1: New CheckIn matches Existing CheckOut
 			if checkIn.Equal(booking.CheckOut) {
