@@ -806,7 +806,7 @@ func (h *Handler) HandleGetPropertyCalendar(ctx context.Context, request events.
 	}
 
 	bookings, err := h.service.ListBookingsByProperty(ctx, propertyID, &DateRange{
-		Start: startDate,
+		Start: startDate.AddDate(0, 0, -90), // Look back 90 days for overlapping bookings
 		End:   endDate,
 	})
 	if err != nil {
@@ -817,6 +817,12 @@ func (h *Handler) HandleGetPropertyCalendar(ctx context.Context, request events.
 	for _, b := range bookings {
 		// Only include non-cancelled bookings as occupied
 		if b.Status != StatusCancelled {
+			// Filter out bookings that don't overlap with the requested range
+			// Booking overlaps if: BookingCheckIn < RequestEndDate AND BookingCheckOut > RequestStartDate
+			if !b.CheckIn.Before(endDate) || !b.CheckOut.After(startDate) {
+				continue
+			}
+
 			occupiedRange := OccupiedDateRange{
 				BookingID: b.ID,
 				CheckIn:   b.CheckIn,
