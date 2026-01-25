@@ -108,10 +108,6 @@ func (h *Handler) HandleCreateBooking(ctx context.Context, request events.APIGat
 		return ErrorResponse(http.StatusBadRequest, "Check-out must be after check-in"), nil
 	}
 
-	if checkIn.Before(time.Now().Truncate(24 * time.Hour)) {
-		return ErrorResponse(http.StatusBadRequest, "Check-in cannot be in the past"), nil
-	}
-
 	// Get property to validate and get pricing
 	property, err := h.propertyService.GetProperty(ctx, req.PropertyID)
 	if err != nil {
