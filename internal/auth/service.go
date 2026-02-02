@@ -49,7 +49,7 @@ func (s *Service) SendOTP(ctx context.Context, phone string) (string, error) {
 		return "", fmt.Errorf("invalid phone number format")
 	}
 
-	code, err := s.otpService.SendOTP(ctx, phone)
+	code, err := s.otpService.SendOTP(ctx, "91"+phone)
 	if err != nil {
 		return "", fmt.Errorf("failed to send OTP: %w", err)
 	}
@@ -76,7 +76,7 @@ func (s *Service) CheckUserExists(ctx context.Context, phone string) (*CheckUser
 		return nil, fmt.Errorf("invalid phone number format")
 	}
 
-	user, err := s.userService.GetUserByPhone(ctx, phone)
+	user, err := s.userService.GetUserByPhone(ctx, "91"+phone)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check user: %w", err)
 	}
