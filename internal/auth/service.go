@@ -111,8 +111,8 @@ func (s *Service) VerifyOTP(ctx context.Context, req VerifyOTPRequest) (*AuthRes
 		return nil, fmt.Errorf("phone and code are required")
 	}
 
-	// Verify the OTP
-	valid, err := s.otpService.VerifyOTP(ctx, req.Phone, req.Code)
+	// Verify the OTP (add country code to match how it was stored)
+	valid, err := s.otpService.VerifyOTP(ctx, "91"+req.Phone, req.Code)
 	if err != nil {
 		return nil, fmt.Errorf("failed to verify OTP: %w", err)
 	}
