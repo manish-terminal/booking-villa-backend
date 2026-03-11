@@ -89,9 +89,9 @@ func (h *Handler) HandleCreateBooking(ctx context.Context, request events.APIGat
 	}
 
 	// Validate required fields
-	if req.PropertyID == "" || req.GuestName == "" || req.GuestPhone == "" ||
+	if req.PropertyID == "" || req.GuestName == "" ||
 		req.CheckIn == "" || req.CheckOut == "" {
-		return ErrorResponse(http.StatusBadRequest, "PropertyID, guestName, guestPhone, checkIn, and checkOut are required"), nil
+		return ErrorResponse(http.StatusBadRequest, "PropertyID, guestName, checkIn, and checkOut are required"), nil
 	}
 
 	// Parse dates
