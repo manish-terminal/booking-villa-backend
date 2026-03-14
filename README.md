@@ -461,7 +461,7 @@ Create a booking.
 **Response (409 - Conflict):**
 ```json
 {
-  "error": "Property is not available for the selected dates"
+  "error": "Property is not available for the selected dates OR refresh the calendar"
 }
 ```
 
