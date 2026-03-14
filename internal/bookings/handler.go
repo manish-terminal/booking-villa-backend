@@ -767,11 +767,13 @@ func (h *Handler) HandleCheckAvailability(ctx context.Context, request events.AP
 
 // OccupiedDateRange represents a range of dates that are not available.
 type OccupiedDateRange struct {
-	BookingID string    `json:"bookingId"`
-	CheckIn   time.Time `json:"checkIn"`
-	CheckOut  time.Time `json:"checkOut"`
-	Status    string    `json:"status"`
-	GuestName string    `json:"guestName,omitempty"`
+	BookingID     string    `json:"bookingId"`
+	CheckIn       time.Time `json:"checkIn"`
+	CheckOut      time.Time `json:"checkOut"`
+	Status        string    `json:"status"`
+	GuestName     string    `json:"guestName,omitempty"`
+	IsMine        bool      `json:"isMine"`
+	CreatedByName string    `json:"createdByName,omitempty"`
 }
 
 // HandleGetPropertyCalendar handles the GET /properties/{id}/calendar endpoint.
@@ -828,13 +830,16 @@ func (h *Handler) HandleGetPropertyCalendar(ctx context.Context, request events.
 				CheckIn:   b.CheckIn,
 				CheckOut:  b.CheckOut,
 				Status:    string(b.Status),
+				IsMine:    b.BookedBy == claims.Phone,
 			}
 
-			// Add guest details if user is authorized
+			// Add guest details and creator info if user is authorized
 			if h.canSeeBookingDetails(ctx, claims, b) {
 				occupiedRange.GuestName = b.GuestName
+				occupiedRange.CreatedByName = b.BookedByName
 			} else {
 				occupiedRange.GuestName = "***"
+				occupiedRange.CreatedByName = "Other Agent"
 			}
 
 			occupied = append(occupied, occupiedRange)
