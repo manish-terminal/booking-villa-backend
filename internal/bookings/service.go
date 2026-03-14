@@ -82,6 +82,9 @@ type Booking struct {
 	CreatedAt  time.Time `dynamodbav:"createdAt" json:"createdAt"`
 	UpdatedAt  time.Time `dynamodbav:"updatedAt" json:"updatedAt"`
 	EntityType string    `dynamodbav:"entityType" json:"-"`
+
+	// Computed fields (not persisted)
+	IsMine bool `dynamodbav:"-" json:"isMine"`
 }
 
 // Service provides booking-related operations.

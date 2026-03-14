@@ -200,6 +200,9 @@ func (h *Handler) HandleCreateBooking(ctx context.Context, request events.APIGat
 		return ErrorResponse(http.StatusInternalServerError, "Failed to create booking"), nil
 	}
 
+	// Set computed fields for response
+	booking.IsMine = true
+
 	// Send notification to property owner
 	if h.notificationService != nil {
 		go func() {
@@ -267,6 +270,9 @@ func (h *Handler) HandleGetBooking(ctx context.Context, request events.APIGatewa
 		booking.GuestPhone = "***"
 		booking.GuestEmail = "***"
 	}
+
+	// Set computed fields
+	booking.IsMine = booking.BookedBy == claims.Phone
 
 	return APIResponse(http.StatusOK, booking), nil
 }
@@ -339,6 +345,10 @@ func (h *Handler) HandleListBookings(ctx context.Context, request events.APIGate
 			b.GuestPhone = "***"
 			b.GuestEmail = "***"
 		}
+
+		// Set computed fields
+		b.IsMine = b.BookedBy == claims.Phone
+
 		visibleBookings = append(visibleBookings, b)
 	}
 
@@ -568,6 +578,9 @@ func (h *Handler) HandleUpdateBooking(ctx context.Context, request events.APIGat
 	if err := h.service.UpdateBooking(ctx, booking); err != nil {
 		return ErrorResponse(http.StatusInternalServerError, "Failed to update booking"), nil
 	}
+
+	// Set computed fields
+	booking.IsMine = booking.BookedBy == claims.Phone
 
 	return APIResponse(http.StatusOK, booking), nil
 }
