@@ -220,7 +220,9 @@ func (s *Service) ListBookingsByProperty(ctx context.Context, propertyID string,
 		if err := attributevalue.UnmarshalMap(item, &booking); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal booking: %w", err)
 		}
-		bookings = append(bookings, &booking)
+		// Create a new instance to avoid pointer-to-loop-variable issues
+		b := booking
+		bookings = append(bookings, &b)
 	}
 
 	return bookings, nil

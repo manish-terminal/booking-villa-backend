@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-lambda-go/events"
@@ -347,7 +348,7 @@ func (h *Handler) HandleListBookings(ctx context.Context, request events.APIGate
 		}
 
 		// Set computed fields
-		b.IsMine = b.BookedBy == claims.Phone
+		b.IsMine = isBookingCreator(b.BookedBy, claims.Phone)
 
 		visibleBookings = append(visibleBookings, b)
 	}
@@ -843,7 +844,7 @@ func (h *Handler) HandleGetPropertyCalendar(ctx context.Context, request events.
 				CheckIn:   b.CheckIn,
 				CheckOut:  b.CheckOut,
 				Status:    string(b.Status),
-				IsMine:    b.BookedBy == claims.Phone,
+				IsMine:    isBookingCreator(b.BookedBy, claims.Phone),
 			}
 
 			// Add guest details and creator info if user is authorized
@@ -875,11 +876,7 @@ func (h *Handler) canSeeBookingDetails(ctx context.Context, claims *utils.TokenC
 
 	// Only the creator of the booking can see guest details.
 	// This hides details from Owners if they didn't create the booking.
-	if booking.BookedBy == claims.Phone {
-		return true
-	}
-
-	return false
+	return isBookingCreator(booking.BookedBy, claims.Phone)
 }
 
 // statusToNotificationType converts a booking status to a notification type.
@@ -894,4 +891,28 @@ func statusToNotificationType(status BookingStatus) notifications.NotificationTy
 	default:
 		return notifications.TypeBookingStatusChange
 	}
+}
+
+// normalizePhone removes common prefixes and whitespace for consistent comparison.
+func normalizePhone(p string) string {
+	p = strings.TrimSpace(p)
+	// Strip +91 or 91 if present and length is > 10
+	if len(p) > 10 {
+		if strings.HasPrefix(p, "+91") {
+			return p[3:]
+		}
+		if strings.HasPrefix(p, "91") {
+			return p[2:]
+		}
+	}
+	return p
+}
+
+// isBookingCreator checks if the user is the one who created the booking.
+func isBookingCreator(bookedBy, userPhone string) bool {
+	if bookedBy == "" || userPhone == "" {
+		return false
+	}
+
+	return normalizePhone(bookedBy) == normalizePhone(userPhone)
 }
