@@ -131,8 +131,12 @@ func (h *Handler) HandleCreateBooking(ctx context.Context, request events.APIGat
 		return ErrorResponse(http.StatusInternalServerError, "Failed to check availability"), nil
 	}
 
-	if !available {
-		return ErrorResponse(http.StatusConflict, "Property is not available for the selected dates"), nil
+	if !available.Available {
+		msg := "Property is not available for the selected dates"
+		if available.Message != "" {
+			msg = available.Message
+		}
+		return ErrorResponse(http.StatusConflict, msg), nil
 	}
 
 	// Validate invite code if provided (for agents)
@@ -393,13 +397,13 @@ func (h *Handler) HandleListAvailableProperties(ctx context.Context, request eve
 	availableProperties := make([]*properties.Property, 0)
 	for _, prop := range allProperties {
 		// Pass empty strings for times to use defaults (14:00/11:00) for general availability
-		isAvailable, err := h.service.CheckAvailability(ctx, prop.ID, checkIn, checkOut, "", "")
+		result, err := h.service.CheckAvailability(ctx, prop.ID, checkIn, checkOut, "", "")
 		if err != nil {
 			// Log error but continue? For now, if we can't check, assume unavailable or skip
 			fmt.Printf("Error checking availability for property %s: %v\n", prop.ID, err)
 			continue
 		}
-		if isAvailable {
+		if result.Available {
 			availableProperties = append(availableProperties, prop)
 		}
 	}
@@ -553,12 +557,16 @@ func (h *Handler) HandleUpdateBooking(ctx context.Context, request events.APIGat
 
 	// 4. Verify availability if dates or times changed
 	if datesChanged || timesChanged {
-		available, err := h.service.CheckAvailability(ctx, booking.PropertyID, booking.CheckIn, booking.CheckOut, booking.CheckInTime, booking.CheckOutTime)
+		result, err := h.service.CheckAvailability(ctx, booking.PropertyID, booking.CheckIn, booking.CheckOut, booking.CheckInTime, booking.CheckOutTime)
 		if err != nil {
 			return ErrorResponse(http.StatusInternalServerError, "Failed to check availability"), nil
 		}
-		if !available {
-			// Warn or error here?
+		if !result.Available {
+			msg := "Property is not available for the selected dates"
+			if result.Message != "" {
+				msg = result.Message
+			}
+			return ErrorResponse(http.StatusConflict, msg), nil
 		}
 	}
 
@@ -766,17 +774,28 @@ func (h *Handler) HandleCheckAvailability(ctx context.Context, request events.AP
 		return ErrorResponse(http.StatusBadRequest, "Invalid checkOut date format. Use YYYY-MM-DD"), nil
 	}
 
-	available, err := h.service.CheckAvailability(ctx, propertyID, checkIn, checkOut, "", "")
+	result, err := h.service.CheckAvailability(ctx, propertyID, checkIn, checkOut, "", "")
 	if err != nil {
 		return ErrorResponse(http.StatusInternalServerError, "Failed to check availability"), nil
 	}
 
-	return APIResponse(http.StatusOK, map[string]interface{}{
+	response := map[string]interface{}{
 		"propertyId": propertyID,
 		"checkIn":    checkInStr,
 		"checkOut":   checkOutStr,
-		"available":  available,
-	}), nil
+		"available":  result.Available,
+	}
+	if result.Message != "" {
+		response["message"] = result.Message
+	}
+	if result.CheckoutTime != "" {
+		response["checkoutTime"] = result.CheckoutTime
+	}
+	if result.CheckInTime != "" {
+		response["nextCheckInTime"] = result.CheckInTime
+	}
+
+	return APIResponse(http.StatusOK, response), nil
 }
 
 // OccupiedDateRange represents a range of dates that are not available.
@@ -788,6 +807,8 @@ type OccupiedDateRange struct {
 	GuestName     string    `json:"guestName,omitempty"`
 	IsMine        bool      `json:"isMine"`
 	CreatedByName string    `json:"createdByName,omitempty"`
+	CheckInTime   string    `json:"checkInTime"`
+	CheckOutTime  string    `json:"checkOutTime"`
 }
 
 // HandleGetPropertyCalendar handles the GET /properties/{id}/calendar endpoint.
@@ -840,11 +861,13 @@ func (h *Handler) HandleGetPropertyCalendar(ctx context.Context, request events.
 			}
 
 			occupiedRange := OccupiedDateRange{
-				BookingID: b.ID,
-				CheckIn:   b.CheckIn,
-				CheckOut:  b.CheckOut,
-				Status:    string(b.Status),
-				IsMine:    isBookingCreator(b.BookedBy, claims.Phone),
+				BookingID:    b.ID,
+				CheckIn:      b.CheckIn,
+				CheckOut:     b.CheckOut,
+				Status:       string(b.Status),
+				IsMine:       isBookingCreator(b.BookedBy, claims.Phone),
+				CheckInTime:  b.CheckInTime,
+				CheckOutTime: b.CheckOutTime,
 			}
 
 			// Add guest details and creator info if user is authorized

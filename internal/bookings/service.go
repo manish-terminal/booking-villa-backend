@@ -239,8 +239,16 @@ func (s *Service) ListBookingsByAgent(ctx context.Context, agentPhone string) ([
 	return []*Booking{}, nil
 }
 
+// AvailabilityResult represents the detailed result of an availability check.
+type AvailabilityResult struct {
+	Available    bool   `json:"available"`
+	Message      string `json:"message,omitempty"`
+	CheckoutTime string `json:"checkoutTime,omitempty"`
+	CheckInTime  string `json:"checkInTime,omitempty"`
+}
+
 // CheckAvailability checks if a property is available for the given dates.
-func (s *Service) CheckAvailability(ctx context.Context, propertyID string, checkIn, checkOut time.Time, checkInTime, checkOutTime string) (bool, error) {
+func (s *Service) CheckAvailability(ctx context.Context, propertyID string, checkIn, checkOut time.Time, checkInTime, checkOutTime string) (*AvailabilityResult, error) {
 	// Get all bookings for the property in the date range
 	// Look back 90 days to ensure we catch long bookings that started earlier but overlap with this range
 	dateRange := &DateRange{
@@ -250,7 +258,7 @@ func (s *Service) CheckAvailability(ctx context.Context, propertyID string, chec
 
 	bookings, err := s.ListBookingsByProperty(ctx, propertyID, dateRange)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 
 	// Helper to parse time string "15:04" to minutes from midnight
@@ -282,37 +290,44 @@ func (s *Service) CheckAvailability(ctx context.Context, propertyID string, chec
 		// Dates overlap check
 		// Standard date overlap (inclusive of boundaries for time check):
 		// (StartA <= EndB) and (EndA >= StartB)
-		// Using !After and !Before handles equality correctly
 		if !checkIn.After(booking.CheckOut) && !checkOut.Before(booking.CheckIn) {
 			// This is a date overlap. Now check if it's just a "touch" (same day turnover)
+
 			// Case 1: New CheckIn matches Existing CheckOut
 			if checkIn.Equal(booking.CheckOut) {
-				// We are checking in on the day they check out.
-				// Check times. New CheckIn must be >= Existing CheckOut
 				existingCheckOutMins := timeToMinutes(booking.CheckOutTime, defaultCheckOutMinutes)
 				if newCheckInMins < existingCheckOutMins {
-					return false, nil // Conflict: Checking in before they leave
+					return &AvailabilityResult{
+						Available:    false,
+						Message:      fmt.Sprintf("Available after %s (previous guest checkout)", booking.CheckOutTime),
+						CheckoutTime: booking.CheckOutTime,
+					}, nil
 				}
 				continue // No conflict on this edge
 			}
 
 			// Case 2: New CheckOut matches Existing CheckIn
 			if checkOut.Equal(booking.CheckIn) {
-				// We are checking out on the day they check in.
-				// Check times. New CheckOut must be <= Existing CheckIn
 				existingCheckInMins := timeToMinutes(booking.CheckInTime, defaultCheckInMinutes)
 				if newCheckOutMins > existingCheckInMins {
-					return false, nil // Conflict: Leaving after they arrive
+					return &AvailabilityResult{
+						Available:   false,
+						Message:     fmt.Sprintf("Next booking starts at %s", booking.CheckInTime),
+						CheckInTime: booking.CheckInTime,
+					}, nil
 				}
 				continue // No conflict on this edge
 			}
 
 			// If it's not a border case (touching dates), it's a full day overlap
-			return false, nil
+			return &AvailabilityResult{
+				Available: false,
+				Message:   "Not available for the selected dates",
+			}, nil
 		}
 	}
 
-	return true, nil
+	return &AvailabilityResult{Available: true}, nil
 }
 
 // CancelBooking cancels a booking.
