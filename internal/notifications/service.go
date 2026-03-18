@@ -141,8 +141,8 @@ func (s *Service) GetUnreadCount(ctx context.Context, userPhone string) (int, er
 }
 
 // CreateBookingNotification creates a notification for a booking event.
-func (s *Service) CreateBookingNotification(ctx context.Context, userPhone string, notifType NotificationType, bookingID, propertyID, propertyName, guestName string) error {
-	title, message := generateBookingMessage(notifType, propertyName, guestName)
+func (s *Service) CreateBookingNotification(ctx context.Context, userPhone string, notifType NotificationType, bookingID, propertyID, propertyName, guestName, agentName, bookingDate string) error {
+	title, message := generateBookingMessage(notifType, propertyName, guestName, agentName, bookingDate)
 
 	notification := NewNotification(userPhone, notifType, title, message)
 	notification.BookingID = bookingID
@@ -152,10 +152,10 @@ func (s *Service) CreateBookingNotification(ctx context.Context, userPhone strin
 }
 
 // generateBookingMessage generates title and message for booking notifications.
-func generateBookingMessage(notifType NotificationType, propertyName, guestName string) (string, string) {
+func generateBookingMessage(notifType NotificationType, propertyName, guestName, agentName, bookingDate string) (string, string) {
 	switch notifType {
 	case TypeBookingCreated:
-		return "New Booking", fmt.Sprintf("New booking created for %s by %s", propertyName, guestName)
+		return "New Booking", fmt.Sprintf("New booking created for %s by %s on %s", propertyName, agentName, bookingDate)
 	case TypeBookingSettled:
 		return "Booking Settled", fmt.Sprintf("Booking for %s has been fully settled", propertyName)
 	case TypeBookingPartial:

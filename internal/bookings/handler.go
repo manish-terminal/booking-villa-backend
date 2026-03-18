@@ -220,6 +220,8 @@ func (h *Handler) HandleCreateBooking(ctx context.Context, request events.APIGat
 				booking.PropertyID,
 				booking.PropertyName,
 				booking.GuestName,
+				booking.BookedByName,
+				booking.CheckIn.Format("02 Jan")+" - "+booking.CheckOut.Format("02 Jan"),
 			)
 			if err != nil {
 				log.Printf("Failed to create notification: %v", err)
@@ -661,6 +663,8 @@ func (h *Handler) HandleUpdateBookingStatus(ctx context.Context, request events.
 						booking.PropertyID,
 						booking.PropertyName,
 						booking.GuestName,
+						booking.BookedByName,
+						booking.CheckIn.Format("02 Jan")+" - "+booking.CheckOut.Format("02 Jan"),
 					)
 				}
 
@@ -674,6 +678,8 @@ func (h *Handler) HandleUpdateBookingStatus(ctx context.Context, request events.
 						booking.PropertyID,
 						booking.PropertyName,
 						booking.GuestName,
+						booking.BookedByName,
+						booking.CheckIn.Format("02 Jan")+" - "+booking.CheckOut.Format("02 Jan"),
 					)
 				}
 			}
@@ -738,6 +744,8 @@ func (h *Handler) HandleSettleBooking(ctx context.Context, request events.APIGat
 					booking.PropertyID,
 					booking.PropertyName,
 					booking.GuestName,
+					booking.BookedByName,
+					booking.CheckIn.Format("02 Jan")+" - "+booking.CheckOut.Format("02 Jan"),
 				)
 			}
 		}()
