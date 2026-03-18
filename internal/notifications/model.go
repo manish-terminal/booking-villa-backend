@@ -16,6 +16,7 @@ const (
 	TypeBookingSettled      NotificationType = "booking_settled"
 	TypeBookingPartial      NotificationType = "booking_partial"
 	TypeBookingCancelled    NotificationType = "booking_cancelled"
+	TypeBookingUpdated      NotificationType = "booking_updated"
 	TypeBookingStatusChange NotificationType = "booking_status_changed"
 )
 

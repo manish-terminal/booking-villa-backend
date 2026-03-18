@@ -479,45 +479,61 @@ func (h *Handler) HandleUpdateBooking(ctx context.Context, request events.APIGat
 
 	// 3. Apply updates
 	datesChanged := false
-	if req.GuestName != nil {
+	importantChanged := false
+
+	if req.GuestName != nil && *req.GuestName != booking.GuestName {
 		booking.GuestName = *req.GuestName
+		importantChanged = true
 	}
-	if req.GuestPhone != nil {
+	if req.GuestPhone != nil && *req.GuestPhone != booking.GuestPhone {
 		booking.GuestPhone = *req.GuestPhone
+		importantChanged = true
 	}
-	if req.GuestEmail != nil {
+	if req.GuestEmail != nil && *req.GuestEmail != booking.GuestEmail {
 		booking.GuestEmail = *req.GuestEmail
+		importantChanged = true
 	}
-	if req.NumGuests != nil {
+	if req.NumGuests != nil && *req.NumGuests != booking.NumGuests {
 		booking.NumGuests = *req.NumGuests
+		importantChanged = true
 	}
-	if req.PricePerNight != nil {
+	if req.PricePerNight != nil && *req.PricePerNight != booking.PricePerNight {
 		booking.PricePerNight = *req.PricePerNight
+		importantChanged = true
 	}
-	if req.TotalAmount != nil {
+	if req.TotalAmount != nil && *req.TotalAmount != booking.TotalAmount {
 		booking.TotalAmount = *req.TotalAmount
+		importantChanged = true
 	}
 	if req.AgentCommission != nil {
 		booking.AgentCommission = *req.AgentCommission
+		// Don't set importantChanged for commission changes
 	}
-	if req.AdvanceAmount != nil {
+	if req.AdvanceAmount != nil && *req.AdvanceAmount != booking.AdvanceAmount {
 		booking.AdvanceAmount = *req.AdvanceAmount
+		importantChanged = true
 	}
-	if req.AdvanceMethod != nil {
+	if req.AdvanceMethod != nil && *req.AdvanceMethod != booking.AdvanceMethod {
 		booking.AdvanceMethod = *req.AdvanceMethod
+		importantChanged = true
 	}
-	if req.Notes != nil {
+	if req.Notes != nil && *req.Notes != booking.Notes {
 		booking.Notes = *req.Notes
+		importantChanged = true
 	}
-	if req.SpecialRequests != nil {
+	if req.SpecialRequests != nil && *req.SpecialRequests != booking.SpecialRequests {
 		booking.SpecialRequests = *req.SpecialRequests
+		importantChanged = true
 	}
-	if req.CheckInTime != nil {
+	if req.CheckInTime != nil && *req.CheckInTime != booking.CheckInTime {
 		booking.CheckInTime = *req.CheckInTime
+		importantChanged = true
 	}
-	if req.CheckOutTime != nil {
+	if req.CheckOutTime != nil && *req.CheckOutTime != booking.CheckOutTime {
 		booking.CheckOutTime = *req.CheckOutTime
+		importantChanged = true
 	}
+
 	// Detect if times changed to force availability check even if dates didn't
 	timesChanged := (req.CheckInTime != nil && *req.CheckInTime != booking.CheckInTime) ||
 		(req.CheckOutTime != nil && *req.CheckOutTime != booking.CheckOutTime)
@@ -551,6 +567,7 @@ func (h *Handler) HandleUpdateBooking(ctx context.Context, request events.APIGat
 
 		if !checkIn.Equal(booking.CheckIn) || !checkOut.Equal(booking.CheckOut) {
 			datesChanged = true
+			importantChanged = true
 			booking.CheckIn = checkIn
 			booking.CheckOut = checkOut
 			booking.NumNights = int(checkOut.Sub(checkIn).Hours() / 24)
@@ -588,6 +605,54 @@ func (h *Handler) HandleUpdateBooking(ctx context.Context, request events.APIGat
 	// 5. Save updates
 	if err := h.service.UpdateBooking(ctx, booking); err != nil {
 		return ErrorResponse(http.StatusInternalServerError, "Failed to update booking"), nil
+	}
+
+	// 6. Send notifications if anything important changed
+	if importantChanged && h.notificationService != nil {
+		go func() {
+			ctx := context.Background()
+
+			// Fetch current user details to get name for notification
+			updater, _ := h.userService.GetUserByPhone(ctx, claims.Phone)
+			updaterName := "Staff"
+			if updater != nil {
+				updaterName = updater.Name
+			}
+
+			// Get property to find owner
+			property, err := h.propertyService.GetProperty(ctx, booking.PropertyID)
+			if err == nil && property != nil {
+				// Notify owner if the updater is not the owner
+				if claims.Phone != property.OwnerID {
+					_ = h.notificationService.CreateBookingNotification(
+						ctx,
+						property.OwnerID,
+						notifications.TypeBookingUpdated,
+						booking.ID,
+						booking.PropertyID,
+						booking.PropertyName,
+						booking.GuestName,
+						updaterName,
+						booking.CheckIn.Format("02 Jan")+" - "+booking.CheckOut.Format("02 Jan"),
+					)
+				}
+
+				// Notify the agent who booked if they're not the one updating
+				if booking.BookedBy != "" && booking.BookedBy != claims.Phone && booking.BookedBy != property.OwnerID {
+					_ = h.notificationService.CreateBookingNotification(
+						ctx,
+						booking.BookedBy,
+						notifications.TypeBookingUpdated,
+						booking.ID,
+						booking.PropertyID,
+						booking.PropertyName,
+						booking.GuestName,
+						updaterName,
+						booking.CheckIn.Format("02 Jan")+" - "+booking.CheckOut.Format("02 Jan"),
+					)
+				}
+			}
+		}()
 	}
 
 	// Set computed fields

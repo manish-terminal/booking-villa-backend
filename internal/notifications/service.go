@@ -162,6 +162,8 @@ func generateBookingMessage(notifType NotificationType, propertyName, guestName,
 		return "Payment Received", fmt.Sprintf("Partial payment received for %s", propertyName)
 	case TypeBookingCancelled:
 		return "Booking Cancelled", fmt.Sprintf("Booking for %s on %s has been cancelled by %s", propertyName, bookingDate, agentName)
+	case TypeBookingUpdated:
+		return "Booking Updated", fmt.Sprintf("Booking for %s on %s has been updated by %s", propertyName, bookingDate, agentName)
 	default:
 		return "Booking Update", fmt.Sprintf("Booking for %s has been updated", propertyName)
 	}
