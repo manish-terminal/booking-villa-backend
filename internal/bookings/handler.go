@@ -644,6 +644,13 @@ func (h *Handler) HandleUpdateBookingStatus(ctx context.Context, request events.
 		return ErrorResponse(http.StatusInternalServerError, "Failed to update booking status"), nil
 	}
 
+	// Fetch current user details to get name for notification
+	updater, _ := h.userService.GetUserByPhone(ctx, claims.Phone)
+	updaterName := "Staff"
+	if updater != nil {
+		updaterName = updater.Name
+	}
+
 	// Send notifications for status change
 	if h.notificationService != nil {
 		go func() {
@@ -663,7 +670,7 @@ func (h *Handler) HandleUpdateBookingStatus(ctx context.Context, request events.
 						booking.PropertyID,
 						booking.PropertyName,
 						booking.GuestName,
-						booking.BookedByName,
+						updaterName,
 						booking.CheckIn.Format("02 Jan")+" - "+booking.CheckOut.Format("02 Jan"),
 					)
 				}
@@ -678,7 +685,7 @@ func (h *Handler) HandleUpdateBookingStatus(ctx context.Context, request events.
 						booking.PropertyID,
 						booking.PropertyName,
 						booking.GuestName,
-						booking.BookedByName,
+						updaterName,
 						booking.CheckIn.Format("02 Jan")+" - "+booking.CheckOut.Format("02 Jan"),
 					)
 				}
