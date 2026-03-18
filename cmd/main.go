@@ -361,6 +361,8 @@ func routeBookings(ctx context.Context, request events.APIGatewayProxyRequest, p
 
 	case strings.HasPrefix(path, "/bookings/") && method == "PATCH":
 		return rbacMiddleware.RequireAny()(bookingHandler.HandleUpdateBooking)(ctx, request)
+	case strings.HasPrefix(path, "/bookings/") && method == "DELETE":
+		return authMiddleware.Authenticate(bookingHandler.HandleDeleteBooking)(ctx, request)
 
 	default:
 		return errorResponse(404, "Booking endpoint not found"), nil

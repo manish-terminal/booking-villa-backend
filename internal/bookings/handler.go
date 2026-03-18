@@ -758,6 +758,58 @@ func (h *Handler) HandleSettleBooking(ctx context.Context, request events.APIGat
 	}), nil
 }
 
+// HandleDeleteBooking handles the DELETE /bookings/{id} endpoint.
+func (h *Handler) HandleDeleteBooking(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+	id := request.PathParameters["id"]
+	if id == "" {
+		return ErrorResponse(http.StatusBadRequest, "Booking ID is required"), nil
+	}
+
+	// 1. Get existing booking to check permissions
+	booking, err := h.service.GetBooking(ctx, id)
+	if err != nil {
+		return ErrorResponse(http.StatusInternalServerError, "Failed to get booking"), nil
+	}
+	if booking == nil {
+		return ErrorResponse(http.StatusNotFound, "Booking not found"), nil
+	}
+
+	// 2. Permission check
+	claims, ok := middleware.GetClaimsFromContext(ctx)
+	if !ok {
+		return ErrorResponse(http.StatusUnauthorized, "Unauthorized"), nil
+	}
+
+	// Admins and Owners can delete any booking
+	// Agents can only delete their own bookings
+	canDelete := false
+	if claims.Role == "admin" {
+		canDelete = true
+	} else {
+		// Check if owner
+		property, err := h.propertyService.GetProperty(ctx, booking.PropertyID)
+		if err == nil && property != nil && property.OwnerID == claims.Phone {
+			canDelete = true
+		} else if isBookingCreator(booking.BookedBy, claims.Phone) {
+			canDelete = true
+		}
+	}
+
+	if !canDelete {
+		return ErrorResponse(http.StatusForbidden, "You do not have permission to delete this booking"), nil
+	}
+
+	// 3. Delete booking
+	if err := h.service.DeleteBooking(ctx, id); err != nil {
+		return ErrorResponse(http.StatusInternalServerError, "Failed to delete booking"), nil
+	}
+
+	return APIResponse(http.StatusOK, map[string]string{
+		"message": "Booking deleted successfully",
+		"id":      id,
+	}), nil
+}
+
 // HandleCheckAvailability handles the GET /properties/{id}/availability endpoint.
 func (h *Handler) HandleCheckAvailability(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 	propertyID := request.PathParameters["id"]

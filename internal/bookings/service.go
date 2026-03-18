@@ -335,6 +335,13 @@ func (s *Service) CancelBooking(ctx context.Context, id string) error {
 	return s.UpdateBookingStatus(ctx, id, StatusCancelled)
 }
 
+// DeleteBooking removes a booking from the database.
+func (s *Service) DeleteBooking(ctx context.Context, id string) error {
+	pk := "BOOKING#" + id
+	sk := "BOOKING#" + id
+	return s.db.DeleteItem(ctx, pk, sk)
+}
+
 // ConfirmBooking marks a booking as settled.
 func (s *Service) ConfirmBooking(ctx context.Context, id string) error {
 	return s.UpdateBookingStatus(ctx, id, StatusSettled)
