@@ -24,6 +24,7 @@ type OwnerAnalytics struct {
 	TotalRevenue    float64 `json:"totalRevenue"`
 	TotalCollected  float64 `json:"totalCollected"`
 	TotalPending    float64 `json:"totalPending"`
+	AveragePrice    float64 `json:"averagePrice"` // Average Daily Rate (ADR)
 	Currency        string  `json:"currency"`
 
 	// Booking breakdown
@@ -48,6 +49,7 @@ type PropertyStat struct {
 	TotalRevenue   float64 `json:"totalRevenue"`
 	TotalCollected float64 `json:"totalCollected"`
 	OccupancyDays  int     `json:"occupancyDays"`
+	AveragePrice   float64 `json:"averagePrice"` // ADR for this property
 }
 
 // AgentAnalytics represents analytics data for agents.
@@ -175,10 +177,23 @@ func (s *Service) GetOwnerAnalytics(ctx context.Context, ownerID string, startDa
 			}
 		}
 
+		if propStat.OccupancyDays > 0 {
+			propStat.AveragePrice = propStat.TotalRevenue / float64(propStat.OccupancyDays)
+		}
 		analytics.PropertyStats = append(analytics.PropertyStats, propStat)
 	}
 
 	analytics.TotalPending = analytics.TotalRevenue - analytics.TotalCollected
+	if analytics.TotalBookings > 0 {
+		// Calculate overall ADR based on nights stayed
+		totalNights := 0
+		for _, ps := range analytics.PropertyStats {
+			totalNights += ps.OccupancyDays
+		}
+		if totalNights > 0 {
+			analytics.AveragePrice = analytics.TotalRevenue / float64(totalNights)
+		}
+	}
 
 	return analytics, nil
 }
