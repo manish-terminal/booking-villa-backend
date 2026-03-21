@@ -63,7 +63,17 @@ type AgentAnalytics struct {
 	TotalBookingValue float64 `json:"totalBookingValue"`
 	TotalCollected    float64 `json:"totalCollected"`
 	TotalCommission   float64 `json:"totalCommission"`
+	AverageCommission float64 `json:"averageCommission"`
 	Currency          string  `json:"currency"`
+
+	// Delta indicators (percentage change vs previous period)
+	Deltas DeltaIndicators `json:"deltas"`
+
+	// Monthly performance data for charts
+	MonthlyPerformance []MonthlyPerformance `json:"monthlyPerformance"`
+
+	// Volume stats
+	VolumeStats VolumeStats `json:"volumeStats"`
 
 	// Booking breakdown
 	BookingsByStatus map[string]int `json:"bookingsByStatus"`
@@ -83,6 +93,30 @@ type AgentPropertyPerformance struct {
 	TotalRevenue    float64 `json:"totalRevenue"`
 	TotalCommission float64 `json:"totalCommission"`
 	BookingCount    int     `json:"bookingCount"`
+}
+
+// MonthlyPerformance represents one month's data for the performance chart.
+type MonthlyPerformance struct {
+	Month        string  `json:"month"` // "Jan", "Feb", etc.
+	Revenue      float64 `json:"revenue"`
+	Commission   float64 `json:"commission"`
+	BookingCount int     `json:"bookingCount"`
+}
+
+// DeltaIndicators represents percentage changes vs the previous period.
+type DeltaIndicators struct {
+	RevenueChange       float64 `json:"revenueChange"`       // e.g. +20.0
+	CommissionChange    float64 `json:"commissionChange"`    // e.g. -18.2
+	AvgCommissionChange float64 `json:"avgCommissionChange"` // points change
+	BookingsChange      float64 `json:"bookingsChange"`      // e.g. +15.0
+}
+
+// VolumeStats identifies the highest and slowest booking months.
+type VolumeStats struct {
+	HighestMonth    string `json:"highestMonth"` // "JUL"
+	HighestBookings int    `json:"highestBookings"`
+	SlowestMonth    string `json:"slowestMonth"` // "JAN"
+	SlowestBookings int    `json:"slowestBookings"`
 }
 
 // BookingSummary is a condensed booking for analytics.
@@ -200,13 +234,22 @@ func (s *Service) GetOwnerAnalytics(ctx context.Context, ownerID string, startDa
 
 // GetAgentAnalytics retrieves analytics for an agent.
 func (s *Service) GetAgentAnalytics(ctx context.Context, agentPhone string, startDate, endDate time.Time) (*AgentAnalytics, error) {
+	monthNames := []string{"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"}
+	monthNamesUpper := []string{"JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"}
+
 	analytics := &AgentAnalytics{
-		AgentPhone:       agentPhone,
-		Currency:         "INR",
-		BookingsByStatus: make(map[string]int),
-		RecentBookings:   []BookingSummary{},
-		PeriodStart:      startDate,
-		PeriodEnd:        endDate,
+		AgentPhone:         agentPhone,
+		Currency:           "INR",
+		BookingsByStatus:   make(map[string]int),
+		RecentBookings:     []BookingSummary{},
+		MonthlyPerformance: make([]MonthlyPerformance, 12),
+		PeriodStart:        startDate,
+		PeriodEnd:          endDate,
+	}
+
+	// Initialize monthly performance slots
+	for i := 0; i < 12; i++ {
+		analytics.MonthlyPerformance[i] = MonthlyPerformance{Month: monthNames[i]}
 	}
 
 	// 1. Get agent's profile to see managed properties
@@ -218,12 +261,11 @@ func (s *Service) GetAgentAnalytics(ctx context.Context, agentPhone string, star
 		return analytics, nil
 	}
 
-	// Set agent name from user profile
 	analytics.AgentName = user.Name
 
+	// --- Current Period ---
 	dateRange := &bookings.DateRange{Start: startDate, End: endDate}
 
-	// 2. Iterate through managed properties to fetch bookings
 	for _, propID := range user.ManagedProperties {
 		propBookings, err := s.bookingService.ListBookingsByProperty(ctx, propID, dateRange)
 		if err != nil {
@@ -231,7 +273,6 @@ func (s *Service) GetAgentAnalytics(ctx context.Context, agentPhone string, star
 		}
 
 		for _, booking := range propBookings {
-			// Only include bookings made by this agent
 			if booking.BookedBy != agentPhone {
 				continue
 			}
@@ -241,14 +282,12 @@ func (s *Service) GetAgentAnalytics(ctx context.Context, agentPhone string, star
 			analytics.TotalCommission += booking.AgentCommission
 			analytics.BookingsByStatus[string(booking.Status)]++
 
-			// Get payment info
 			paymentStatus := "pending"
 			if summary, err := s.paymentService.CalculatePaymentStatus(ctx, booking.ID); err == nil {
 				analytics.TotalCollected += summary.TotalPaid
 				paymentStatus = string(summary.Status)
 			}
 
-			// Add to recent bookings (limit to 100 entries before sorting in future if needed)
 			if len(analytics.RecentBookings) < 50 {
 				analytics.RecentBookings = append(analytics.RecentBookings, BookingSummary{
 					BookingID:       booking.ID,
@@ -263,6 +302,94 @@ func (s *Service) GetAgentAnalytics(ctx context.Context, agentPhone string, star
 				})
 			}
 		}
+	}
+
+	// Calculate average commission
+	if analytics.TotalBookings > 0 {
+		analytics.AverageCommission = analytics.TotalCommission / float64(analytics.TotalBookings)
+	}
+
+	// --- Previous Period (for delta calculation) ---
+	periodDuration := endDate.Sub(startDate)
+	prevStart := startDate.Add(-periodDuration)
+	prevEnd := startDate.Add(-time.Second)
+	prevDateRange := &bookings.DateRange{Start: prevStart, End: prevEnd}
+
+	var prevRevenue, prevCommission float64
+	var prevBookings int
+
+	for _, propID := range user.ManagedProperties {
+		propBookings, err := s.bookingService.ListBookingsByProperty(ctx, propID, prevDateRange)
+		if err != nil {
+			continue
+		}
+		for _, booking := range propBookings {
+			if booking.BookedBy != agentPhone {
+				continue
+			}
+			prevBookings++
+			prevRevenue += booking.TotalAmount
+			prevCommission += booking.AgentCommission
+		}
+	}
+
+	// Compute deltas
+	if prevRevenue > 0 {
+		analytics.Deltas.RevenueChange = ((analytics.TotalBookingValue - prevRevenue) / prevRevenue) * 100
+	}
+	if prevCommission > 0 {
+		analytics.Deltas.CommissionChange = ((analytics.TotalCommission - prevCommission) / prevCommission) * 100
+	}
+	if prevBookings > 0 {
+		analytics.Deltas.BookingsChange = ((float64(analytics.TotalBookings) - float64(prevBookings)) / float64(prevBookings)) * 100
+		prevAvgCommission := prevCommission / float64(prevBookings)
+		analytics.Deltas.AvgCommissionChange = analytics.AverageCommission - prevAvgCommission
+	}
+
+	// --- Monthly Performance (full year) ---
+	year := endDate.Year()
+	yearStart := time.Date(year, 1, 1, 0, 0, 0, 0, time.UTC)
+	yearEnd := time.Date(year, 12, 31, 23, 59, 59, 0, time.UTC)
+	yearRange := &bookings.DateRange{Start: yearStart, End: yearEnd}
+
+	for _, propID := range user.ManagedProperties {
+		propBookings, err := s.bookingService.ListBookingsByProperty(ctx, propID, yearRange)
+		if err != nil {
+			continue
+		}
+		for _, booking := range propBookings {
+			if booking.BookedBy != agentPhone {
+				continue
+			}
+			monthIdx := int(booking.CheckIn.Month()) - 1
+			if monthIdx >= 0 && monthIdx < 12 {
+				analytics.MonthlyPerformance[monthIdx].Revenue += booking.TotalAmount
+				analytics.MonthlyPerformance[monthIdx].Commission += booking.AgentCommission
+				analytics.MonthlyPerformance[monthIdx].BookingCount++
+			}
+		}
+	}
+
+	// --- Volume Stats ---
+	highestIdx, slowestIdx := 0, 0
+	highestCount, slowestCount := -1, int(^uint(0)>>1) // max int
+
+	for i, mp := range analytics.MonthlyPerformance {
+		if mp.BookingCount > highestCount {
+			highestCount = mp.BookingCount
+			highestIdx = i
+		}
+		if mp.BookingCount < slowestCount {
+			slowestCount = mp.BookingCount
+			slowestIdx = i
+		}
+	}
+
+	analytics.VolumeStats = VolumeStats{
+		HighestMonth:    monthNamesUpper[highestIdx],
+		HighestBookings: highestCount,
+		SlowestMonth:    monthNamesUpper[slowestIdx],
+		SlowestBookings: slowestCount,
 	}
 
 	return analytics, nil
