@@ -5,9 +5,6 @@ import (
 	"context"
 	"encoding/csv"
 	"fmt"
-	"strconv"
-	"strings"
-	"time"
 
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/booking-villa-backend/internal/bookings"
@@ -18,8 +15,7 @@ import (
 
 // GenerateMasterCSV creates a CSV dump of all data.
 func (s *Service) GenerateMasterCSV(ctx context.Context) ([]byte, error) {
-	// 1. Fetch ALL properties via Scan (using PK prefix for reliability)
-	// Some older records might not have EntityType attribute
+	// 1. Fetch ALL properties
 	propParams := db.ScanParams{
 		FilterExpression: "begins_with(PK, :prefix) AND SK = :sk",
 		ExpressionValues: map[string]interface{}{
@@ -40,7 +36,7 @@ func (s *Service) GenerateMasterCSV(ctx context.Context) ([]byte, error) {
 		}
 	}
 
-	// 2. Fetch ALL users via Scan
+	// 2. Fetch ALL users
 	userParams := db.ScanParams{
 		FilterExpression: "begins_with(PK, :prefix) AND SK = :sk",
 		ExpressionValues: map[string]interface{}{
@@ -53,15 +49,17 @@ func (s *Service) GenerateMasterCSV(ctx context.Context) ([]byte, error) {
 		return nil, fmt.Errorf("failed to scan users: %w", err)
 	}
 
+	var allUsers []users.User
 	userMap := make(map[string]string) // phone -> name
 	for _, item := range userItems {
 		var u users.User
 		if err := attributevalue.UnmarshalMap(item, &u); err == nil {
 			userMap[u.Phone] = u.Name
+			allUsers = append(allUsers, u)
 		}
 	}
 
-	// 3. Fetch ALL bookings via Scan
+	// 3. Fetch ALL bookings
 	bookingParams := db.ScanParams{
 		FilterExpression: "begins_with(PK, :prefix) AND SK = :sk",
 		ExpressionValues: map[string]interface{}{
@@ -82,63 +80,40 @@ func (s *Service) GenerateMasterCSV(ctx context.Context) ([]byte, error) {
 		}
 	}
 
-	// 4. Generate CSV
-	var b bytes.Buffer
-	w := csv.NewWriter(&b)
+	// 4. Generate CSV with all sections
+	var buf bytes.Buffer
+	w := csv.NewWriter(&buf)
 
-	// Header
-	header := []string{
-		"Booking ID", "Status", "Created At",
-		"Property Name", "Property ID", "Owner Phone",
-		"Guest Name", "Guest Phone", "Guest Email", "Num Guests",
-		"Check In", "Check Out", "Nights",
-		"Total Amount", "Agent Commission", "Currency",
-		"Booked By Phone", "Booked By Name", "Invite Code",
-		"Notes",
+	// Section 1: Bookings (latest first)
+	if err := w.Write([]string{"=== BOOKINGS (Latest First) ==="}); err != nil {
+		return nil, err
 	}
-	if err := w.Write(header); err != nil {
+	if err := writeBookingsCSV(w, allBookings, propMap, userMap); err != nil {
 		return nil, err
 	}
 
-	// Rows
-	for _, bk := range allBookings {
-		// Resolve Agent Name
-		agentName := "Direct/Owner"
-		if bk.BookedBy != "" {
-			if name, ok := userMap[bk.BookedBy]; ok {
-				agentName = name
-			} else if bk.BookedByName != "" {
-				agentName = bk.BookedByName
-			} else {
-				agentName = "Unknown Agent"
-			}
-		}
+	// Section 2: Users with Roles (recent first)
+	if err := w.Write([]string{}); err != nil {
+		return nil, err
+	}
+	if err := w.Write([]string{"=== USERS WITH ROLES (Recent First) ==="}); err != nil {
+		return nil, err
+	}
+	if err := writeUsersCSV(w, allUsers); err != nil {
+		return nil, err
+	}
 
-		// Resolve Property Metadata
-		propertyName := bk.PropertyName
-		ownerPhone := "Unknown"
-		if p, ok := propMap[bk.PropertyID]; ok {
-			propertyName = p.Name
-			ownerPhone = p.OwnerID
-		} else if strings.Contains(bk.PropertyID, "6c258855") {
-			// Special handling for the sample property in user's dump if ID mismatch
-			// This is just a fallback, the propMap check is primary
-		}
-
-		row := []string{
-			bk.ID, string(bk.Status), bk.CreatedAt.Format(time.RFC3339),
-			propertyName, bk.PropertyID, ownerPhone,
-			bk.GuestName, bk.GuestPhone, bk.GuestEmail, strconv.Itoa(bk.NumGuests),
-			bk.CheckIn.Format("2006-01-02"), bk.CheckOut.Format("2006-01-02"), strconv.Itoa(bk.NumNights),
-			fmt.Sprintf("%.2f", bk.TotalAmount), fmt.Sprintf("%.2f", bk.AgentCommission), bk.Currency,
-			bk.BookedBy, agentName, bk.InviteCode,
-			bk.Notes,
-		}
-		if err := w.Write(row); err != nil {
-			return nil, err
-		}
+	// Section 3: Agents with Connections (recent first)
+	if err := w.Write([]string{}); err != nil {
+		return nil, err
+	}
+	if err := w.Write([]string{"=== AGENTS WITH CONNECTIONS (Recent First) ==="}); err != nil {
+		return nil, err
+	}
+	if err := writeAgentsCSV(w, allUsers, propMap); err != nil {
+		return nil, err
 	}
 
 	w.Flush()
-	return b.Bytes(), w.Error()
+	return buf.Bytes(), w.Error()
 }

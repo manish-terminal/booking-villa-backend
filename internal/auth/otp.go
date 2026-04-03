@@ -43,7 +43,7 @@ type OTPService struct {
 
 // NewOTPService creates a new OTP service.
 func NewOTPService(dbClient *db.Client) *OTPService {
-	expiryMinutes := 5 // Default 5 minutes
+	expiryMinutes := 43200 // Default 1 month (43200 minutes)
 	if envExpiry := os.Getenv("OTP_EXPIRY_MINUTES"); envExpiry != "" {
 		if parsed, err := strconv.Atoi(envExpiry); err == nil {
 			expiryMinutes = parsed
