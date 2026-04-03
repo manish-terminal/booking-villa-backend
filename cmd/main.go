@@ -50,7 +50,8 @@ func init() {
 	notificationHandler = notifications.NewHandler(dbClient)
 	bookingHandler = bookings.NewHandler(dbClient, notificationHandler.GetService())
 	paymentHandler = payments.NewHandler(dbClient)
-	analyticsHandler = analytics.NewHandler(dbClient)
+	analyticsService := analytics.NewService(dbClient)
+	analyticsHandler = analytics.NewHandler(analyticsService)
 	// Create property lister function to avoid import cycle
 	propertyLister := func(ctx context.Context, ownerPhone string) ([]string, error) {
 		props, err := properties.NewService(dbClient).ListPropertiesByOwner(ctx, ownerPhone)
@@ -375,8 +376,14 @@ func routeAnalytics(ctx context.Context, request events.APIGatewayProxyRequest, 
 	case path == "/analytics/owner" && method == "GET":
 		return rbacMiddleware.RequireAdminOrOwner()(analyticsHandler.HandleOwnerAnalytics)(ctx, request)
 
-	case path == "/analytics/export" && method == "GET":
-		return rbacMiddleware.RequireAdmin()(analyticsHandler.HandleExportData)(ctx, request)
+	case path == "/analytics/export/bookings" && method == "GET":
+		return rbacMiddleware.RequireAdmin()(analyticsHandler.HandleExportBookings)(ctx, request)
+
+	case path == "/analytics/export/users" && method == "GET":
+		return rbacMiddleware.RequireAdmin()(analyticsHandler.HandleExportUsers)(ctx, request)
+
+	case path == "/analytics/export/agents" && method == "GET":
+		return rbacMiddleware.RequireAdmin()(analyticsHandler.HandleExportAgents)(ctx, request)
 
 	case path == "/analytics/agent" && method == "GET":
 		return rbacMiddleware.RequireAny()(analyticsHandler.HandleAgentAnalytics)(ctx, request)
