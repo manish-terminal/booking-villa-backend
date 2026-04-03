@@ -1,10 +1,7 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: >
-  booking-villa-backend
-  SAM Template for booking-villa-backend
+Description: booking-villa-backend consolidated template
 
-# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
 Globals:
   Function:
     Timeout: 30
@@ -19,7 +16,6 @@ Globals:
       - "*/*"
 
 Resources:
-  # API Gateway
   BookingApi:
     Type: AWS::Serverless::Api
     Properties:
@@ -28,8 +24,9 @@ Resources:
         AllowMethods: "'GET,POST,PUT,PATCH,DELETE,OPTIONS'"
         AllowHeaders: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
         AllowOrigin: "'*'"
+      BinaryMediaTypes:
+        - "*/*"
 
-  # Lambda Function
   BookingFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -38,152 +35,52 @@ Resources:
       Runtime: provided.al2
       Architectures:
         - arm64
-      MemorySize: 256
-      Timeout: 15
+      MemorySize: 512
+      Timeout: 30
       Events:
-        # Auth endpoints
-        UserLogin:
+        # Consolidated Proxy Routes to minimize Lambda Resource Policy size
+        AuthProxy:
           Type: Api
           Properties:
             RestApiId: !Ref BookingApi
-            Path: /auth/login
-            Method: POST
-        UserMe:
+            Path: /auth/{proxy+}
+            Method: ANY
+        UserProxy:
           Type: Api
           Properties:
             RestApiId: !Ref BookingApi
-            Path: /auth/me
-            Method: GET
-        SendOTP:
-          Type: Api
-          Properties:
-            RestApiId: !Ref BookingApi
-            Path: /auth/send-otp
-            Method: POST
-        VerifyOTP:
-          Type: Api
-          Properties:
-            RestApiId: !Ref BookingApi
-            Path: /auth/verify-otp
-            Method: POST
-
-        # User endpoints
-        ListUsers:
+            Path: /users/{proxy+}
+            Method: ANY
+        UsersBase:
           Type: Api
           Properties:
             RestApiId: !Ref BookingApi
             Path: /users
-            Method: GET
-        UpdateUser:
+            Method: ANY
+        PropertyProxy:
           Type: Api
           Properties:
             RestApiId: !Ref BookingApi
-            Path: /users/{phone}
-            Method: PATCH
-
-        # Property endpoints
-        CreateProperty:
-          Type: Api
-          Properties:
-            RestApiId: !Ref BookingApi
-            Path: /properties
-            Method: POST
-        GetProperty:
-          Type: Api
-          Properties:
-            RestApiId: !Ref BookingApi
-            Path: /properties/{id}
-            Method: GET
-        ListProperties:
+            Path: /properties/{proxy+}
+            Method: ANY
+        PropertiesBase:
           Type: Api
           Properties:
             RestApiId: !Ref BookingApi
             Path: /properties
-            Method: GET
-        GenerateInviteCode:
+            Method: ANY
+        BookingProxy:
           Type: Api
           Properties:
             RestApiId: !Ref BookingApi
-            Path: /properties/{id}/invite-codes
-            Method: POST
-        ListInviteCodes:
-          Type: Api
-          Properties:
-            RestApiId: !Ref BookingApi
-            Path: /properties/{id}/invite-codes
-            Method: GET
-        ValidateInviteCode:
-          Type: Api
-          Properties:
-            RestApiId: !Ref BookingApi
-            Path: /invite-codes/validate
-            Method: POST
-
-        # Booking endpoints
-        CreateBooking:
+            Path: /bookings/{proxy+}
+            Method: ANY
+        BookingsBase:
           Type: Api
           Properties:
             RestApiId: !Ref BookingApi
             Path: /bookings
-            Method: POST
-        GetBooking:
-          Type: Api
-          Properties:
-            RestApiId: !Ref BookingApi
-            Path: /bookings/{id}
-            Method: GET
-        ListBookings:
-          Type: Api
-          Properties:
-            RestApiId: !Ref BookingApi
-            Path: /bookings
-            Method: GET
-        UpdateBookingStatus:
-          Type: Api
-          Properties:
-            RestApiId: !Ref BookingApi
-            Path: /bookings/{id}/status
-            Method: PATCH
-        SettleBooking:
-          Type: Api
-          Properties:
-            RestApiId: !Ref BookingApi
-            Path: /bookings/{id}/settle
-            Method: POST
-        EditBooking:
-          Type: Api
-          Properties:
-            RestApiId: !Ref BookingApi
-            Path: /bookings/{id}
-            Method: PATCH
-        CheckAvailability:
-          Type: Api
-          Properties:
-            RestApiId: !Ref BookingApi
-            Path: /properties/{id}/availability
-            Method: GET
-        GetPropertyCalendar:
-          Type: Api
-          Properties:
-            RestApiId: !Ref BookingApi
-            Path: /properties/{id}/calendar
-            Method: GET
-        ListAvailableProperties:
-          Type: Api
-          Properties:
-            RestApiId: !Ref BookingApi
-            Path: /properties/available
-            Method: GET
-
-        # Payment endpoints
-        GetPaymentStatus:
-          Type: Api
-          Properties:
-            RestApiId: !Ref BookingApi
-            Path: /bookings/{id}/payment-status
-            Method: GET
-
-        # Analytics endpoints (Proxy)
+            Method: ANY
         AnalyticsProxy:
           Type: Api
           Properties:
@@ -196,34 +93,25 @@ Resources:
             RestApiId: !Ref BookingApi
             Path: /analytics
             Method: ANY
-
-        # Notification endpoints
-        ListNotifications:
+        NotificationProxy:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BookingApi
+            Path: /notifications/{proxy+}
+            Method: ANY
+        NotificationsBase:
           Type: Api
           Properties:
             RestApiId: !Ref BookingApi
             Path: /notifications
-            Method: GET
-        MarkNotificationRead:
+            Method: ANY
+        MiscProxy:
           Type: Api
           Properties:
             RestApiId: !Ref BookingApi
-            Path: /notifications/{id}/read
-            Method: PATCH
-        MarkAllNotificationsRead:
-          Type: Api
-          Properties:
-            RestApiId: !Ref BookingApi
-            Path: /notifications/mark-all-read
-            Method: POST
-        GetUnreadCount:
-          Type: Api
-          Properties:
-            RestApiId: !Ref BookingApi
-            Path: /notifications/count
-            Method: GET
+            Path: /{proxy+}
+            Method: ANY
 
-  # DynamoDB Table
   BookingTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -242,5 +130,5 @@ Resources:
 
 Outputs:
   BookingApi:
-    Description: "API Gateway endpoint URL for Prod stage"
+    Description: "API Gateway endpoint URL"
     Value: !Sub "https://${BookingApi}.execute-api.${AWS::Region}.amazonaws.com/prod/"
