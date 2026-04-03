@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: booking-villa-backend consolidated template
+Description: booking-villa-backend refined template
 
 Globals:
   Function:
@@ -9,11 +9,6 @@ Globals:
     Environment:
       Variables:
         DYNAMODB_TABLE: booking-villa-backend
-    Tracing: Active
-  Api:
-    TracingEnabled: True
-    BinaryMediaTypes:
-      - "*/*"
 
 Resources:
   BookingApi:
@@ -25,7 +20,8 @@ Resources:
         AllowHeaders: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
         AllowOrigin: "'*'"
       BinaryMediaTypes:
-        - "*/*"
+        - "application/octet-stream"
+        - "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
   BookingFunction:
     Type: AWS::Serverless::Function
@@ -35,53 +31,50 @@ Resources:
       Runtime: provided.al2
       Architectures:
         - arm64
-      MemorySize: 512
-      Timeout: 30
       Events:
-        # Consolidated Proxy Routes to minimize Lambda Resource Policy size
-        AuthProxy:
+        AuthRoutes:
           Type: Api
           Properties:
             RestApiId: !Ref BookingApi
             Path: /auth/{proxy+}
             Method: ANY
-        UserProxy:
+        UserRoutes:
           Type: Api
           Properties:
             RestApiId: !Ref BookingApi
             Path: /users/{proxy+}
             Method: ANY
-        UsersBase:
+        UserBase:
           Type: Api
           Properties:
             RestApiId: !Ref BookingApi
             Path: /users
             Method: ANY
-        PropertyProxy:
+        PropertyRoutes:
           Type: Api
           Properties:
             RestApiId: !Ref BookingApi
             Path: /properties/{proxy+}
             Method: ANY
-        PropertiesBase:
+        PropertyBase:
           Type: Api
           Properties:
             RestApiId: !Ref BookingApi
             Path: /properties
             Method: ANY
-        BookingProxy:
+        BookingRoutes:
           Type: Api
           Properties:
             RestApiId: !Ref BookingApi
             Path: /bookings/{proxy+}
             Method: ANY
-        BookingsBase:
+        BookingBase:
           Type: Api
           Properties:
             RestApiId: !Ref BookingApi
             Path: /bookings
             Method: ANY
-        AnalyticsProxy:
+        AnalyticsRoutes:
           Type: Api
           Properties:
             RestApiId: !Ref BookingApi
@@ -93,23 +86,17 @@ Resources:
             RestApiId: !Ref BookingApi
             Path: /analytics
             Method: ANY
-        NotificationProxy:
+        NotificationRoutes:
           Type: Api
           Properties:
             RestApiId: !Ref BookingApi
             Path: /notifications/{proxy+}
             Method: ANY
-        NotificationsBase:
+        NotificationBase:
           Type: Api
           Properties:
             RestApiId: !Ref BookingApi
             Path: /notifications
-            Method: ANY
-        MiscProxy:
-          Type: Api
-          Properties:
-            RestApiId: !Ref BookingApi
-            Path: /{proxy+}
             Method: ANY
 
   BookingTable:
