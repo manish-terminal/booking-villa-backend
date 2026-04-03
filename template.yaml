@@ -235,9 +235,9 @@ Resources:
           AttributeType: S
       KeySchema:
         - AttributeName: PK
-          KeyType: Hash
+          KeyType: HASH
         - AttributeName: SK
-          KeyType: Range
+          KeyType: RANGE
       BillingMode: PAY_PER_REQUEST
 
 Outputs:
