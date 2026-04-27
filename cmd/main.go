@@ -100,61 +100,70 @@ func corsResponse() events.APIGatewayProxyResponse {
 
 // routeRequest routes the incoming request to the appropriate handler.
 func routeRequest(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
-	path := request.Path
+	path := strings.TrimSuffix(request.Path, "/")
+	if path == "" {
+		path = "/"
+	}
 	method := request.HTTPMethod
 
-	// Normalize path (remove trailing slash)
-	path = strings.TrimSuffix(path, "/")
-
-	// Auth routes (public)
-	if strings.HasPrefix(path, "/auth") {
-		return routeAuth(ctx, request, path, method)
-	}
-
-	// User routes
-	if strings.HasPrefix(path, "/users") {
-		return routeUsers(ctx, request, path, method)
-	}
-
-	// Agent routes
-	if strings.HasPrefix(path, "/agents") {
-		return routeAgents(ctx, request, path, method)
-	}
-
-	// Property routes
-	if strings.HasPrefix(path, "/properties") {
-		return routeProperties(ctx, request, path, method)
-	}
-
-	// Invite code validation (requires auth to link user to property)
-	if path == "/invite-codes/validate" && method == "POST" {
-		return authMiddleware.Authenticate(propertyHandler.HandleValidateInviteCode)(ctx, request)
-	}
-
-	// Booking routes
-	if strings.HasPrefix(path, "/bookings") {
-		return routeBookings(ctx, request, path, method)
-	}
-
-	// Analytics routes
-	if strings.HasPrefix(path, "/analytics") {
-		return routeAnalytics(ctx, request, path, method)
-	}
-
-	// Notification routes
-	if strings.HasPrefix(path, "/notifications") {
-		return routeNotifications(ctx, request, path, method)
-	}
-
-	// Health check
-	if path == "/health" || path == "/" {
+	// Special case for root/health
+	if path == "/" || path == "/health" {
 		return apiResponse(200, map[string]string{
 			"status":  "healthy",
 			"service": "booking-villa-backend",
 		}), nil
 	}
 
-	return errorResponse(404, "Not found"), nil
+	// Split path to extract segments
+	parts := strings.Split(strings.TrimPrefix(path, "/"), "/")
+	if len(parts) == 0 {
+		return errorResponse(404, "Not found"), nil
+	}
+
+	// Dispatch by top-level segment
+	switch parts[0] {
+	case "auth":
+		return routeAuth(ctx, request, path, method)
+	case "users":
+		// Populate phone parameter if present: /users/{phone}
+		if len(parts) >= 2 {
+			if request.PathParameters == nil {
+				request.PathParameters = make(map[string]string)
+			}
+			request.PathParameters["phone"] = parts[1]
+		}
+		return routeUsers(ctx, request, path, method)
+	case "agents":
+		return routeAgents(ctx, request, path, method)
+	case "properties":
+		// Populate id parameter if present: /properties/{id}
+		if len(parts) >= 2 {
+			if request.PathParameters == nil {
+				request.PathParameters = make(map[string]string)
+			}
+			request.PathParameters["id"] = parts[1]
+		}
+		return routeProperties(ctx, request, path, method)
+	case "invite-codes":
+		if len(parts) >= 2 && parts[1] == "validate" {
+			return authMiddleware.Authenticate(propertyHandler.HandleValidateInviteCode)(ctx, request)
+		}
+	case "bookings":
+		// Populate id parameter if present: /bookings/{id}
+		if len(parts) >= 2 {
+			if request.PathParameters == nil {
+				request.PathParameters = make(map[string]string)
+			}
+			request.PathParameters["id"] = parts[1]
+		}
+		return routeBookings(ctx, request, path, method)
+	case "analytics":
+		return routeAnalytics(ctx, request, path, method)
+	case "notifications":
+		return routeNotifications(ctx, request, path, method)
+	}
+
+	return errorResponse(404, "Endpoint not found"), nil
 }
 
 // routeAuth handles authentication routes.

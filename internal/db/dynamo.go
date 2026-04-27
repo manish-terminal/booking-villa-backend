@@ -29,7 +29,7 @@ func NewClient(ctx context.Context) (*Client, error) {
 
 	tableName := os.Getenv("TABLE_NAME")
 	if tableName == "" {
-		tableName = "BookingPlatformTable"
+		tableName = "booking-villa-backend"
 	}
 
 	return &Client{

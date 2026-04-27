@@ -8,7 +8,7 @@ Globals:
     MemorySize: 512
     Environment:
       Variables:
-        DYNAMODB_TABLE: booking-villa-backend
+        TABLE_NAME: booking-villa-backend
 
 Resources:
   BookingApi:
@@ -31,72 +31,21 @@ Resources:
       Runtime: provided.al2
       Architectures:
         - arm64
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BookingTable
       Events:
-        AuthRoutes:
+        AnyRoute:
           Type: Api
           Properties:
             RestApiId: !Ref BookingApi
-            Path: /auth/{proxy+}
+            Path: /{proxy+}
             Method: ANY
-        UserRoutes:
+        RootRoute:
           Type: Api
           Properties:
             RestApiId: !Ref BookingApi
-            Path: /users/{proxy+}
-            Method: ANY
-        UserBase:
-          Type: Api
-          Properties:
-            RestApiId: !Ref BookingApi
-            Path: /users
-            Method: ANY
-        PropertyRoutes:
-          Type: Api
-          Properties:
-            RestApiId: !Ref BookingApi
-            Path: /properties/{proxy+}
-            Method: ANY
-        PropertyBase:
-          Type: Api
-          Properties:
-            RestApiId: !Ref BookingApi
-            Path: /properties
-            Method: ANY
-        BookingRoutes:
-          Type: Api
-          Properties:
-            RestApiId: !Ref BookingApi
-            Path: /bookings/{proxy+}
-            Method: ANY
-        BookingBase:
-          Type: Api
-          Properties:
-            RestApiId: !Ref BookingApi
-            Path: /bookings
-            Method: ANY
-        AnalyticsRoutes:
-          Type: Api
-          Properties:
-            RestApiId: !Ref BookingApi
-            Path: /analytics/{proxy+}
-            Method: ANY
-        AnalyticsBase:
-          Type: Api
-          Properties:
-            RestApiId: !Ref BookingApi
-            Path: /analytics
-            Method: ANY
-        NotificationRoutes:
-          Type: Api
-          Properties:
-            RestApiId: !Ref BookingApi
-            Path: /notifications/{proxy+}
-            Method: ANY
-        NotificationBase:
-          Type: Api
-          Properties:
-            RestApiId: !Ref BookingApi
-            Path: /notifications
+            Path: /
             Method: ANY
 
   BookingTable:
@@ -108,14 +57,30 @@ Resources:
           AttributeType: S
         - AttributeName: SK
           AttributeType: S
+        - AttributeName: GSI1PK
+          AttributeType: S
+        - AttributeName: GSI1SK
+          AttributeType: S
       KeySchema:
         - AttributeName: PK
           KeyType: HASH
         - AttributeName: SK
           KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: GSI1
+          KeySchema:
+            - AttributeName: GSI1PK
+              KeyType: HASH
+            - AttributeName: GSI1SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
       BillingMode: PAY_PER_REQUEST
 
 Outputs:
   BookingApi:
     Description: "API Gateway endpoint URL"
+    Value: !Sub "https://${BookingApi}.execute-api.${AWS::Region}.amazonaws.com/prod/"
+  ApiEndpoint:
+    Description: "API Gateway endpoint URL (required by CI/CD)"
     Value: !Sub "https://${BookingApi}.execute-api.${AWS::Region}.amazonaws.com/prod/"
